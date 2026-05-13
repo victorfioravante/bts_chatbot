@@ -1,9 +1,42 @@
 const { io } = require("socket.io-client");
+const https = require("https");
 const { MsgpackEncoder, MsgpackDecoder } = require("./parser");
 const logger = require("../modules/logger");
 const config = require("../config");
 const eventBus = require("../eventBus");
 const auth = require("../auth");
+
+// Faz um GET raw ao endpoint de polling para ver a resposta do servidor
+function probePollingEndpoint(socketToken, fingerprint) {
+  return new Promise((resolve) => {
+    const path = `/chat/?EIO=4&transport=polling&t=${Date.now()}`;
+    const req = https.request(
+      {
+        hostname: "ws.bitsler.com",
+        path,
+        method: "GET",
+        headers: {
+          authorization: socketToken,
+          fp: fingerprint,
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+          Accept: "*/*",
+          Origin: "https://www.bitsler.com",
+          Referer: "https://www.bitsler.com/",
+        },
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (c) => (data += c));
+        res.on("end", () => {
+          logger.info(`[WS-probe] HTTP ${res.statusCode} → ${data.slice(0, 300)}`);
+          resolve();
+        });
+      }
+    );
+    req.on("error", (e) => { logger.warn(`[WS-probe] erro: ${e.message}`); resolve(); });
+    req.end();
+  });
+}
 
 const MsgpackParser = { Encoder: MsgpackEncoder, Decoder: MsgpackDecoder };
 
@@ -45,6 +78,9 @@ async function connect() {
     socket.removeAllListeners();
     socket.disconnect();
   }
+
+  // Diagnóstico: testa o endpoint de polling manualmente antes de conectar
+  await probePollingEndpoint(socketToken, fingerprint);
 
   logger.info("Conectando ao WebSocket do Bitsler...");
 
