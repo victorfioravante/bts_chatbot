@@ -51,9 +51,10 @@ function generateTOTP(secret, window = 0) {
 
 // ─── HTTP helper ─────────────────────────────────────────────────────────────
 
-function postJson(url, body) {
+// Bitsler's /api/login expects application/x-www-form-urlencoded, not JSON
+function postForm(url, body) {
   return new Promise((resolve, reject) => {
-    const payload = JSON.stringify(body);
+    const payload = new URLSearchParams(body).toString();
     const parsed = new URL(url);
     const lib = parsed.protocol === "https:" ? https : http;
 
@@ -63,9 +64,13 @@ function postJson(url, body) {
         path: parsed.pathname + parsed.search,
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type": "application/x-www-form-urlencoded",
           "Content-Length": Buffer.byteLength(payload),
-          "User-Agent": "Mozilla/5.0 (compatible; BitslerBot/1.0)",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+          Accept: "application/json, text/plain, */*",
+          Origin: "https://www.bitsler.com",
+          Referer: "https://www.bitsler.com/",
         },
       },
       (res) => {
@@ -126,15 +131,15 @@ async function login() {
   }
 
   const payload = { username, token, two_factor: twoFactor, fingerprint };
-  const result = await postJson(LOGIN_URL, payload);
+  const result = await postForm(LOGIN_URL, payload);
 
-  if (result.status !== 200 || !result.body?.data) {
+  if (!result.body?.success) {
     // Tenta próximo window TOTP se der erro de 2FA
     if (twoFaSecret && result.body?.error?.includes("2fa")) {
       const nextCode = generateTOTP(twoFaSecret, 1);
       logger.warn(`[Auth] Código TOTP expirado, tentando próximo window: ${nextCode}`);
-      const retry = await postJson(LOGIN_URL, { ...payload, two_factor: nextCode });
-      if (retry.status === 200 && retry.body?.data) {
+      const retry = await postForm(LOGIN_URL, { ...payload, two_factor: nextCode });
+      if (retry.body?.success && retry.body?.data) {
         return extractSocketToken(retry.body.data);
       }
     }
