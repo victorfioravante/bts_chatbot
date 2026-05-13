@@ -1,225 +1,270 @@
 /**
- * Auto-login no Bitsler para obter o socketToken sem interação manual.
+ * Autenticação no Bitsler — baseado no bitsler-auth.js confirmado do diceroll_pro.
  *
- * Prioridade:
- *   1. BITSLER_API_KEY + BITSLER_USERNAME  (recomendado — não expira como o JWT)
- *   2. BITSLER_PASSWORD + BITSLER_2FA_SECRET (gera código TOTP automaticamente)
- *   3. SOCKET_TOKEN direto no .env (fallback manual)
+ * FLUXO CORRETO (API key + senha juntos, bypassa captcha):
+ *   POST /api/login { username, password, api_key, two_factor, fingerprint }
+ *
+ * FLUXO FALLBACK (senha em dois passos, pode exigir captcha):
+ *   Passo 1: POST { username, password, fingerprint }
+ *            → retorna { data: { token: "<temp>" } }
+ *   Passo 2: POST { username, token: <temp>, two_factor, fingerprint }
+ *            → retorna tokens finais
+ *
+ * Variáveis de ambiente:
+ *   BITSLER_USERNAME    — usuário da conta
+ *   BITSLER_PASSWORD    — senha plaintext (necessária mesmo usando API key)
+ *   BITSLER_API_KEY     — API key gerada em Bitsler → Configurações → API key
+ *   BITSLER_2FA_SECRET  — secret TOTP base32 (gera código automaticamente)
+ *   BITSLER_FINGERPRINT — visitorId/fingerprint do browser (20 chars)
+ *   SOCKET_TOKEN        — fallback manual (extraído via DevTools)
  */
 
 const https = require("https");
 const http = require("http");
+const crypto = require("crypto");
 const logger = require("./modules/logger");
 
-const LOGIN_URL = "https://www.bitsler.com/api/login";
+const LOGIN_URL = process.env.BITSLER_LOGIN_URL || "https://www.bitsler.com/api/login";
+
+const FORM_HEADERS = {
+  "Content-Type": "application/x-www-form-urlencoded",
+  Accept: "application/json",
+  Origin: "https://www.bitsler.com",
+  Referer: "https://www.bitsler.com/en/casino/games/dice",
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+};
 
 // ─── TOTP (RFC 6238) ────────────────────────────────────────────────────────
 
-function base32Decode(str) {
+function _base32Decode(s) {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-  let bits = 0;
-  let value = 0;
-  const output = [];
-  for (const char of str.toUpperCase().replace(/=+$/, "")) {
-    const idx = alphabet.indexOf(char);
-    if (idx === -1) continue;
-    value = (value << 5) | idx;
-    bits += 5;
-    if (bits >= 8) {
-      output.push((value >>> (bits - 8)) & 0xff);
-      bits -= 8;
-    }
+  let bits = "";
+  for (const c of s.toUpperCase().replace(/[=\s]/g, "")) {
+    const v = alphabet.indexOf(c);
+    if (v < 0) continue;
+    bits += v.toString(2).padStart(5, "0");
   }
-  return Buffer.from(output);
+  const bytes = [];
+  for (let i = 0; i + 8 <= bits.length; i += 8)
+    bytes.push(parseInt(bits.slice(i, i + 8), 2));
+  return Buffer.from(bytes);
 }
 
-function hmacSha1(key, data) {
-  const crypto = require("crypto");
-  return crypto.createHmac("sha1", key).update(data).digest();
+function generateTOTP(secret, digits = 6, period = 30) {
+  const key = _base32Decode(secret);
+  const counter = Math.floor(Date.now() / 1000 / period);
+  const buf = Buffer.alloc(8);
+  buf.writeBigInt64BE(BigInt(counter));
+  const hmac = crypto.createHmac("sha1", key).update(buf).digest();
+  const offset = hmac[19] & 0xf;
+  const code =
+    (((hmac[offset] & 0x7f) << 24) |
+      ((hmac[offset + 1] & 0xff) << 16) |
+      ((hmac[offset + 2] & 0xff) << 8) |
+      (hmac[offset + 3] & 0xff)) %
+    10 ** digits;
+  return code.toString().padStart(digits, "0");
 }
 
-function generateTOTP(secret, window = 0) {
-  const counter = Math.floor(Date.now() / 1000 / 30) + window;
-  const counterBuf = Buffer.alloc(8);
-  counterBuf.writeBigUInt64BE(BigInt(counter));
-  const keyBuf = base32Decode(secret);
-  const hash = hmacSha1(keyBuf, counterBuf);
-  const offset = hash[hash.length - 1] & 0x0f;
-  const code = (hash.readUInt32BE(offset) & 0x7fffffff) % 1_000_000;
-  return code.toString().padStart(6, "0");
-}
+// ─── HTTP helper ─────────────────────────────────────────────────────────────
 
-// ─── HTTP helpers ────────────────────────────────────────────────────────────
-
-const BASE_HEADERS = {
-  "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-  Accept: "application/json, text/plain, */*",
-  "Accept-Language": "en-US,en;q=0.9",
-  Origin: "https://www.bitsler.com",
-  Referer: "https://www.bitsler.com/",
-};
-
-// GET request — returns { status, headers, body, cookies }
-function getRequest(url) {
+function rawPost(url, payload) {
   return new Promise((resolve, reject) => {
+    const safe = { ...payload };
+    if (safe.token) safe.token = safe.token.slice(0, 6) + "…";
+    if (safe.password) safe.password = "***";
+    if (safe.api_key) safe.api_key = safe.api_key.slice(0, 6) + "…";
+    logger.debug(`[Auth] POST ${url.replace(/.*\/\/[^/]+/, "")} ${JSON.stringify(safe)}`);
+
+    const body = new URLSearchParams(payload).toString();
     const parsed = new URL(url);
     const lib = parsed.protocol === "https:" ? https : http;
+
     const req = lib.request(
-      { hostname: parsed.hostname, path: parsed.pathname + parsed.search, method: "GET", headers: BASE_HEADERS },
+      {
+        hostname: parsed.hostname,
+        path: parsed.pathname + parsed.search,
+        method: "POST",
+        headers: { ...FORM_HEADERS, "Content-Length": Buffer.byteLength(body) },
+      },
       (res) => {
         let data = "";
         res.on("data", (c) => (data += c));
         res.on("end", () => {
-          const cookies = {};
-          for (const raw of [].concat(res.headers["set-cookie"] || [])) {
-            const [pair] = raw.split(";");
-            const [k, v] = pair.split("=");
-            if (k) cookies[k.trim()] = (v || "").trim();
+          const cookie = [].concat(res.headers["set-cookie"] || [])
+            .map((c) => c.split(";")[0].trim())
+            .filter(Boolean)
+            .join("; ");
+
+          logger.debug(`[Auth] HTTP ${res.status}: ${data.slice(0, 300)}`);
+
+          let json;
+          try { json = JSON.parse(data || "null"); } catch { json = null; }
+
+          if (res.statusCode >= 400) {
+            const e = new Error(`HTTP ${res.statusCode}: ${data.slice(0, 120)}`);
+            e.status = res.statusCode;
+            throw e;
           }
-          resolve({ status: res.statusCode, headers: res.headers, body: data, cookies });
+
+          if (!json || json?.success === false) {
+            const errCode = json?.error ?? json?.error_code ?? "unknown";
+            const e = new Error(errCode);
+            e.status = 401;
+            e.body = json;
+            return reject(e);
+          }
+
+          resolve({ body: json, cookie });
         });
       }
     );
     req.on("error", reject);
+    req.write(body);
     req.end();
   });
 }
 
-// POST with form-encoded body; optional cookie string
-function postForm(url, body, cookieStr = "") {
-  return new Promise((resolve, reject) => {
-    const payload = new URLSearchParams(body).toString();
-    const parsed = new URL(url);
-    const lib = parsed.protocol === "https:" ? https : http;
+function extractResult(body, cookie) {
+  const data = body?.data ?? body ?? {};
+  // Para WebSocket do chat precisamos do socketToken
+  const socketToken =
+    data.socketToken ?? data.socket_token ?? data.access_token ?? data.accessToken ?? data.token ?? "";
+  if (!socketToken && !cookie) return null;
+  return {
+    socketToken,
+    cookie,
+    token: data.access_token ?? data.accessToken ?? data.token ?? "",
+    sessionToken: data.sessionToken ?? data.session_token ?? "",
+    uniqueToken: data.uniqueToken ?? data.unique_token ?? "",
+    nextClient: data.nextClient ?? data.next_client ?? "",
+  };
+}
 
-    const headers = {
-      ...BASE_HEADERS,
-      "Content-Type": "application/x-www-form-urlencoded",
-      "Content-Length": Buffer.byteLength(payload),
-    };
-    if (cookieStr) headers["Cookie"] = cookieStr;
+// ─── Fluxo de senha em dois passos ───────────────────────────────────────────
 
-    const req = lib.request(
-      { hostname: parsed.hostname, path: parsed.pathname + parsed.search, method: "POST", headers },
-      (res) => {
-        let data = "";
-        res.on("data", (chunk) => (data += chunk));
-        res.on("end", () => {
-          try {
-            resolve({ status: res.statusCode, body: JSON.parse(data) });
-          } catch {
-            reject(new Error(`Resposta inválida: ${data}`));
-          }
-        });
-      }
-    );
-
-    req.on("error", reject);
-    req.write(payload);
-    req.end();
+async function twoStepPassword(username, password, twoFactor, fingerprint) {
+  logger.info("[Auth] Tentando senha (passo 1/2)...");
+  const { body: body1, cookie: cookie1 } = await rawPost(LOGIN_URL, {
+    username, password, fingerprint,
   });
+
+  const data1 = body1?.data ?? body1 ?? {};
+
+  if (data1.access_token ?? data1.accessToken ?? data1.socketToken) {
+    return extractResult(body1, cookie1);
+  }
+
+  const interimToken = data1.token;
+  if (!interimToken) {
+    logger.warn("[Auth] Passo 1 não retornou token intermediário — provavelmente captcha necessário");
+    return null;
+  }
+
+  if (!twoFactor) {
+    logger.warn("[Auth] Servidor pediu 2FA mas BITSLER_2FA_SECRET não está configurado");
+    return null;
+  }
+
+  logger.info("[Auth] Passo 2/2 — enviando TOTP...");
+  const { body: body2, cookie: cookie2 } = await rawPost(LOGIN_URL, {
+    username, token: interimToken, two_factor: twoFactor, fingerprint,
+  });
+
+  return extractResult(body2, cookie2);
 }
 
-// Extract cookies as "key=value; key2=value2" string
-function cookieString(obj) {
-  return Object.entries(obj).map(([k, v]) => `${k}=${v}`).join("; ");
-}
-
-// ─── Login ───────────────────────────────────────────────────────────────────
+// ─── Login principal ─────────────────────────────────────────────────────────
 
 async function login() {
-  const username = process.env.BITSLER_USERNAME;
-  const apiKey = process.env.BITSLER_API_KEY;
-  const password = process.env.BITSLER_PASSWORD;
+  const username    = process.env.BITSLER_USERNAME;
+  const password    = process.env.BITSLER_PASSWORD;
+  const apiKey      = process.env.BITSLER_API_KEY;
   const twoFaSecret = process.env.BITSLER_2FA_SECRET;
-  const fingerprint = process.env.BITSLER_FINGERPRINT || "00000000000000000000";
+  const fingerprint = process.env.BITSLER_FINGERPRINT || "";
 
-  // Fallback: socketToken já definido manualmente
+  // Fallback manual
   if (!username && process.env.SOCKET_TOKEN) {
     logger.info("[Auth] Usando SOCKET_TOKEN manual do .env");
     return process.env.SOCKET_TOKEN;
   }
 
   if (!username) {
-    throw new Error("Configure BITSLER_USERNAME + BITSLER_API_KEY (ou BITSLER_PASSWORD) no .env");
+    throw new Error(
+      "Configure BITSLER_USERNAME + BITSLER_PASSWORD + BITSLER_API_KEY no .env"
+    );
   }
 
-  let token;
-  let twoFactor = "";
+  const twoFactor = twoFaSecret ? generateTOTP(twoFaSecret) : (process.env.BITSLER_2FA_CODE || "");
 
-  if (apiKey) {
-    token = apiKey;
-    logger.info("[Auth] Login via API key...");
-  } else if (password) {
-    token = password;
-    if (twoFaSecret) {
-      // Tenta o código atual e, se necessário, o código do próximo window (+30s)
-      twoFactor = generateTOTP(twoFaSecret);
-      logger.info("[Auth] Login via senha + TOTP...");
-    } else {
-      logger.info("[Auth] Login via senha (sem 2FA)...");
+  // ── Fluxo 1: password + api_key juntos (sem captcha) ──
+  if (password && apiKey) {
+    const candidates = [];
+    if (twoFactor) {
+      candidates.push({
+        label: "pw+apikey+2fa",
+        payload: { username, password, api_key: apiKey, two_factor: twoFactor, fingerprint },
+      });
     }
-  } else {
-    throw new Error("Defina BITSLER_API_KEY ou BITSLER_PASSWORD no .env");
-  }
+    candidates.push({
+      label: "pw+apikey",
+      payload: { username, password, api_key: apiKey, fingerprint },
+    });
 
-  // Fetch the main page first to collect session cookies (anti-bot check)
-  logger.debug("[Auth] Obtendo cookies de sessão...");
-  let cookies = {};
-  try {
-    const page = await getRequest("https://www.bitsler.com/");
-    cookies = page.cookies;
-    logger.debug(`[Auth] Cookies obtidos: ${Object.keys(cookies).join(", ") || "nenhum"}`);
-  } catch (e) {
-    logger.warn(`[Auth] Não foi possível obter cookies: ${e.message}`);
-  }
-
-  const payload = { username, token, two_factor: twoFactor, fingerprint };
-  logger.debug(`[Auth] Payload: ${JSON.stringify({ ...payload, token: "***" })}`);
-
-  const result = await postForm(LOGIN_URL, payload, cookieString(cookies));
-  logger.debug(`[Auth] Resposta: ${JSON.stringify(result.body)}`);
-
-  if (!result.body?.success) {
-    // Tenta próximo window TOTP se der erro de 2FA
-    if (twoFaSecret && result.body?.error?.includes("2fa")) {
-      const nextCode = generateTOTP(twoFaSecret, 1);
-      logger.warn(`[Auth] Código TOTP expirado, tentando próximo window: ${nextCode}`);
-      const retry = await postForm(LOGIN_URL, { ...payload, two_factor: nextCode }, cookieString(cookies));
-      if (retry.body?.success && retry.body?.data) {
-        return extractSocketToken(retry.body.data);
+    for (const { label, payload } of candidates) {
+      try {
+        logger.info(`[Auth] Login via ${label}...`);
+        const { body, cookie } = await rawPost(LOGIN_URL, payload);
+        const result = extractResult(body, cookie);
+        if (result?.socketToken) {
+          logger.info("[Auth] Login OK — socketToken obtido.");
+          return result.socketToken;
+        }
+        logger.warn(`[Auth] ${label}: sem socketToken na resposta — ${JSON.stringify(body?.data)}`);
+      } catch (e) {
+        logger.warn(`[Auth] ${label} rejeitado: ${e.message}`);
+        if (e.status !== 401 && e.status !== 422 && e.status !== 403) throw e;
       }
     }
-    throw new Error(`Login falhou (${result.status}): ${JSON.stringify(result.body)}`);
   }
 
-  return extractSocketToken(result.body.data);
-}
-
-function extractSocketToken(data) {
-  const socketToken = data?.socketToken || data?.user?.socketToken;
-  if (!socketToken) {
-    throw new Error(`socketToken não encontrado na resposta: ${JSON.stringify(data)}`);
+  // ── Fluxo 2: password sozinha em dois passos ──
+  if (password && !apiKey) {
+    try {
+      const result = await twoStepPassword(username, password, twoFactor, fingerprint);
+      if (result?.socketToken) {
+        logger.info("[Auth] Login OK (dois passos).");
+        return result.socketToken;
+      }
+    } catch (e) {
+      logger.warn(`[Auth] Senha rejeitada: ${e.message}`);
+      if (e.status !== 401 && e.status !== 422 && e.status !== 403) throw e;
+    }
   }
-  logger.info("[Auth] Login bem-sucedido, socketToken obtido.");
-  return socketToken;
+
+  if (apiKey && !password) {
+    throw new Error("BITSLER_API_KEY requer BITSLER_PASSWORD — configure os dois no .env");
+  }
+
+  throw new Error(
+    "Login falhou. Verifique BITSLER_USERNAME, BITSLER_PASSWORD e BITSLER_API_KEY no .env"
+  );
 }
 
-// ─── Renovação automática ─────────────────────────────────────────────────────
+// ─── Cache e renovação automática ────────────────────────────────────────────
 
 let _cachedToken = null;
 let _tokenObtainedAt = 0;
 const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hora
 
 async function getSocketToken(forceRefresh = false) {
-  const now = Date.now();
-
-  // Token manual no env: usa direto sem cache
+  // Token manual sem credenciais de login
   if (!process.env.BITSLER_USERNAME && process.env.SOCKET_TOKEN) {
     return process.env.SOCKET_TOKEN;
   }
 
+  const now = Date.now();
   if (!forceRefresh && _cachedToken && now - _tokenObtainedAt < TOKEN_TTL_MS) {
     return _cachedToken;
   }
@@ -234,4 +279,4 @@ function clearCache() {
   _tokenObtainedAt = 0;
 }
 
-module.exports = { getSocketToken, clearCache };
+module.exports = { getSocketToken, clearCache, generateTOTP };
