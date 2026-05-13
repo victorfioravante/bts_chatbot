@@ -3,6 +3,7 @@ const { MsgpackEncoder, MsgpackDecoder } = require("./parser");
 const logger = require("../modules/logger");
 const config = require("../config");
 const eventBus = require("../eventBus");
+const auth = require("../auth");
 
 const MsgpackParser = { Encoder: MsgpackEncoder, Decoder: MsgpackDecoder };
 
@@ -25,14 +26,18 @@ function getUptime() {
   return Math.floor((Date.now() - connectionStart) / 1000);
 }
 
-function connect() {
+async function connect() {
   const cfg = config.get();
-  const socketToken = process.env.SOCKET_TOKEN;
-  const fingerprint = process.env.FINGERPRINT || "00000000000000000000";
+  const fingerprint =
+    process.env.BITSLER_FINGERPRINT || process.env.FINGERPRINT || "00000000000000000000";
 
-  if (!socketToken) {
-    logger.warn("SOCKET_TOKEN nao definido. Configure no .env ou via painel.");
-    eventBus.emit("status", { connected: false, error: "Token nao configurado" });
+  let socketToken;
+  try {
+    socketToken = await auth.getSocketToken();
+  } catch (err) {
+    logger.error(`[Auth] ${err.message}`);
+    eventBus.emit("status", { connected: false, error: err.message });
+    scheduleReconnect();
     return;
   }
 
@@ -99,6 +104,13 @@ function connect() {
     connected = false;
     logger.error(`Erro de conexao: ${err.message}`);
     eventBus.emit("status", { connected: false, error: err.message });
+
+    // Token inválido/expirado — força renovação no próximo connect
+    if (/auth|token|401|403/i.test(err.message)) {
+      logger.warn("[Auth] Token inválido detectado, forçando renovação...");
+      auth.clearCache();
+    }
+
     scheduleReconnect();
   });
 

@@ -10,10 +10,38 @@ const autoMessage = require("./modules/autoMessage");
 const routes = require("./api/routes");
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || process.env.DASHBOARD_PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
+
+// Proteção por senha (quando DASHBOARD_PASSWORD está definida)
+const DASHBOARD_PASSWORD = process.env.DASHBOARD_PASSWORD;
+if (DASHBOARD_PASSWORD) {
+  app.use((req, res, next) => {
+    // Permite acesso ao endpoint de auth
+    if (req.path === "/api/v1/auth") return next();
+    // Verifica token no header ou query
+    const token = req.headers["x-dashboard-token"] || req.query.token;
+    if (token === DASHBOARD_PASSWORD) return next();
+    // Se for rota de API, rejeita com 401
+    if (req.path.startsWith("/api/")) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    // Para o frontend SPA, deixa passar (o React trata o login)
+    next();
+  });
+
+  // Endpoint de autenticação do painel
+  app.post("/api/v1/auth", (req, res) => {
+    const { password } = req.body || {};
+    if (password === DASHBOARD_PASSWORD) {
+      res.json({ ok: true, token: DASHBOARD_PASSWORD });
+    } else {
+      res.status(401).json({ ok: false, error: "Senha incorreta" });
+    }
+  });
+}
 
 // Serve frontend build
 const frontendDist = path.join(__dirname, "../frontend/dist");
@@ -31,18 +59,13 @@ app.get("*", (req, res) => {
 
 app.listen(PORT, () => {
   logger.info(`Backend rodando na porta ${PORT}`);
+  if (DASHBOARD_PASSWORD) logger.info("Painel protegido por senha ativado.");
   config.load();
 
   // Connect socket and register event handlers
-  const socket = socketClient;
   socketClient.connect();
 
-  // Register event handlers after connect
-  const { getSocket } = socketClient;
-  const sio = getSocket();
-  if (sio) events.register(sio);
-
-  // Watch for new socket connections to re-register handlers
+  // Re-register handlers on every new connection
   const eventBus = require("./eventBus");
   eventBus.on("status", (status) => {
     if (status.connected) {

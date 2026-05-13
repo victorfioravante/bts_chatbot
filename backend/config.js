@@ -48,7 +48,11 @@ function deepMerge(target, source) {
 
 function getDefaults() {
   return {
-    connection: { autoConnect: true, reconnectDelay: 5000, maxReconnectAttempts: 10 },
+    connection: {
+      autoConnect: true,
+      reconnectDelay: Number(process.env.RECONNECT_DELAY_MS) || 5000,
+      maxReconnectAttempts: Number(process.env.MAX_RECONNECT_ATTEMPTS) || 10,
+    },
     channels: { autoJoin: ["en", "br", "system"], monitor: ["system", "en", "br"] },
     rainMonitor: { enabled: true, sound: true, nativeNotification: true, webhookUrl: "" },
     autoMessage: { enabled: true, profiles: [] },
