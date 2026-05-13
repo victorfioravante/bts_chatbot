@@ -48,12 +48,18 @@ async function connect() {
 
   logger.info("Conectando ao WebSocket do Bitsler...");
 
-  socket = io("wss://ws.bitsler.com", {
+  // Polling primeiro (HTTP) para enviar auth headers — depois upgrade para WS.
+  // extraHeaders no nível raiz garante envio em ambos os transports no Node.js.
+  socket = io("https://ws.bitsler.com", {
     path: "/chat",
     autoConnect: false,
     parser: MsgpackParser,
     reconnection: false,
-    transports: ["websocket", "polling"],
+    transports: ["polling", "websocket"],
+    extraHeaders: {
+      authorization: socketToken,
+      fp: fingerprint,
+    },
     transportOptions: {
       polling: {
         extraHeaders: {
@@ -61,14 +67,15 @@ async function connect() {
           fp: fingerprint,
         },
       },
-      websocket: {
-        extraHeaders: {
-          authorization: socketToken,
-          fp: fingerprint,
-        },
-      },
     },
   });
+
+  // Log de baixo nível para diagnóstico de transport close
+  socket.io.on("open", () => logger.debug("[WS] engine abriu"));
+  socket.io.on("error", (err) => logger.error(`[WS] engine error: ${JSON.stringify(err)}`));
+  socket.io.on("close", (reason, desc) =>
+    logger.warn(`[WS] engine fechou: ${reason} ${desc ? JSON.stringify(desc) : ""}`)
+  );
 
   socket.on("connect", () => {
     connected = true;
