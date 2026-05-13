@@ -135,22 +135,20 @@ function extractResult(body, cookie) {
   logger.debug(`[Auth] data.token=${data.token ? String(data.token).slice(0,20)+"…" : "undefined"}`);
   logger.debug(`[Auth] data.access_token=${data.access_token ? String(data.access_token).slice(0,20)+"…" : "undefined"}`);
 
-  const socketToken =
-    data.socketToken ?? data.socket_token ?? data.access_token ?? data.accessToken ?? data.token ?? "";
-  if (!socketToken && !cookie) return null;
+  // socketToken para WebSocket é um JWT separado do access_token (REST)
+  const socketToken = data.socketToken ?? data.socket_token ?? null;
 
-  const usedField = data.socketToken ? "socketToken"
-    : data.socket_token ? "socket_token"
-    : data.access_token ? "access_token"
-    : data.accessToken ? "accessToken"
-    : data.token ? "token"
-    : "cookie-only";
-  logger.info(`[Auth] Usando campo '${usedField}' como socketToken`);
+  const usedField = data.socketToken ? "socketToken" : data.socket_token ? "socket_token" : "none";
+  if (socketToken) logger.info(`[Auth] socketToken encontrado no campo '${usedField}'`);
 
+  // access_token (hex) e token são para REST API — guardados separadamente
+  const restToken = data.access_token ?? data.accessToken ?? data.token ?? "";
+
+  if (!socketToken && !restToken && !cookie) return null;
   return {
-    socketToken,
+    socketToken,     // JWT para WebSocket (null se não retornado pelo login)
     cookie,
-    token: data.access_token ?? data.accessToken ?? data.token ?? "",
+    token: restToken,  // hex token para REST API
     sessionToken: data.sessionToken ?? data.session_token ?? "",
     uniqueToken: data.uniqueToken ?? data.unique_token ?? "",
     nextClient: data.nextClient ?? data.next_client ?? "",
@@ -189,29 +187,46 @@ function getJson(url, accessToken, cookie) {
 
 async function fetchSocketTokenFromUserApi(accessToken, cookie) {
   const base = "https://www.bitsler.com";
+
+  // Tenta múltiplos formatos de authorization header
+  const authHeaders = [
+    accessToken,              // token raw
+    `Bearer ${accessToken}`,  // Bearer token
+  ];
+
   const endpoints = [
     `${base}/api/users/me`,
     `${base}/api/user`,
     `${base}/api/users/info`,
     `${base}/api/chat/token`,
+    `${base}/api/chat/auth`,
+    `${base}/api/users/socket-token`,
+    `${base}/api/auth/socket`,
   ];
 
-  for (const url of endpoints) {
-    try {
-      const { status, body } = await getJson(url, accessToken, cookie);
-      logger.debug(`[Auth] ${url} → ${status}: ${JSON.stringify(body)?.slice(0, 200)}`);
-      if (status === 200 && body) {
-        const data = body?.data ?? body ?? {};
-        const st = data.socketToken ?? data.socket_token ?? data.chatToken ?? data.chat_token;
-        if (st) {
-          logger.info(`[Auth] socketToken encontrado em ${url}`);
-          return st;
+  for (const authValue of authHeaders) {
+    for (const url of endpoints) {
+      try {
+        const { status, body } = await getJson(url, authValue, cookie);
+        // Log all fields to help find the socketToken
+        if (status === 200 && body) {
+          logger.debug(`[Auth] ${url} (${authValue.slice(0, 10)}…) → fields: ${Object.keys(body?.data ?? body ?? {}).join(", ")}`);
+          const data = body?.data ?? body ?? {};
+          const st = data.socketToken ?? data.socket_token ?? data.chatToken ?? data.chat_token;
+          if (st) {
+            logger.info(`[Auth] socketToken encontrado em ${url}`);
+            return st;
+          }
+        } else if (status !== 404) {
+          logger.debug(`[Auth] ${url} → HTTP ${status}`);
         }
+      } catch (e) {
+        logger.debug(`[Auth] ${url} erro: ${e.message}`);
       }
-    } catch (e) {
-      logger.debug(`[Auth] ${url} falhou: ${e.message}`);
     }
   }
+
+  logger.warn("[Auth] socketToken não encontrado nos endpoints. Verifique DevTools → Network → ws.bitsler.com → authorization header.");
   return null;
 }
 
@@ -292,19 +307,19 @@ async function login() {
         const result = extractResult(body, cookie);
 
         if (result?.socketToken) {
-          logger.info("[Auth] Login OK — socketToken obtido diretamente.");
+          logger.info("[Auth] Login OK — socketToken JWT obtido diretamente.");
           return result.socketToken;
         }
 
-        // Login deu certo mas não retornou socketToken diretamente.
-        // Tenta buscar o socketToken via endpoint de usuário usando access_token.
+        // Login retornou access_token (REST) mas não socketToken (WebSocket).
+        // Tenta buscar socketToken via endpoints autenticados.
         if (result?.token || result?.cookie) {
-          logger.info("[Auth] Login OK — buscando socketToken via /api/users/me...");
+          logger.info(`[Auth] Login OK (REST token) — buscando socketToken via API...`);
           const st = await fetchSocketTokenFromUserApi(result.token, result.cookie);
           if (st) return st;
         }
 
-        logger.warn(`[Auth] ${label}: sem socketToken na resposta — ${JSON.stringify(body?.data)}`);
+        logger.warn(`[Auth] ${label}: socketToken não encontrado`);
       } catch (e) {
         logger.warn(`[Auth] ${label} rejeitado: ${e.message}`);
         if (e.status !== 401 && e.status !== 422 && e.status !== 403) throw e;
