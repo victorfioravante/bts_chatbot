@@ -49,30 +49,59 @@ function generateTOTP(secret, window = 0) {
   return code.toString().padStart(6, "0");
 }
 
-// ─── HTTP helper ─────────────────────────────────────────────────────────────
+// ─── HTTP helpers ────────────────────────────────────────────────────────────
 
-// Bitsler's /api/login expects application/x-www-form-urlencoded, not JSON
-function postForm(url, body) {
+const BASE_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  Accept: "application/json, text/plain, */*",
+  "Accept-Language": "en-US,en;q=0.9",
+  Origin: "https://www.bitsler.com",
+  Referer: "https://www.bitsler.com/",
+};
+
+// GET request — returns { status, headers, body, cookies }
+function getRequest(url) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const lib = parsed.protocol === "https:" ? https : http;
+    const req = lib.request(
+      { hostname: parsed.hostname, path: parsed.pathname + parsed.search, method: "GET", headers: BASE_HEADERS },
+      (res) => {
+        let data = "";
+        res.on("data", (c) => (data += c));
+        res.on("end", () => {
+          const cookies = {};
+          for (const raw of [].concat(res.headers["set-cookie"] || [])) {
+            const [pair] = raw.split(";");
+            const [k, v] = pair.split("=");
+            if (k) cookies[k.trim()] = (v || "").trim();
+          }
+          resolve({ status: res.statusCode, headers: res.headers, body: data, cookies });
+        });
+      }
+    );
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+// POST with form-encoded body; optional cookie string
+function postForm(url, body, cookieStr = "") {
   return new Promise((resolve, reject) => {
     const payload = new URLSearchParams(body).toString();
     const parsed = new URL(url);
     const lib = parsed.protocol === "https:" ? https : http;
 
+    const headers = {
+      ...BASE_HEADERS,
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Content-Length": Buffer.byteLength(payload),
+    };
+    if (cookieStr) headers["Cookie"] = cookieStr;
+
     const req = lib.request(
-      {
-        hostname: parsed.hostname,
-        path: parsed.pathname + parsed.search,
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Content-Length": Buffer.byteLength(payload),
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-          Accept: "application/json, text/plain, */*",
-          Origin: "https://www.bitsler.com",
-          Referer: "https://www.bitsler.com/",
-        },
-      },
+      { hostname: parsed.hostname, path: parsed.pathname + parsed.search, method: "POST", headers },
       (res) => {
         let data = "";
         res.on("data", (chunk) => (data += chunk));
@@ -90,6 +119,11 @@ function postForm(url, body) {
     req.write(payload);
     req.end();
   });
+}
+
+// Extract cookies as "key=value; key2=value2" string
+function cookieString(obj) {
+  return Object.entries(obj).map(([k, v]) => `${k}=${v}`).join("; ");
 }
 
 // ─── Login ───────────────────────────────────────────────────────────────────
@@ -130,15 +164,29 @@ async function login() {
     throw new Error("Defina BITSLER_API_KEY ou BITSLER_PASSWORD no .env");
   }
 
+  // Fetch the main page first to collect session cookies (anti-bot check)
+  logger.debug("[Auth] Obtendo cookies de sessão...");
+  let cookies = {};
+  try {
+    const page = await getRequest("https://www.bitsler.com/");
+    cookies = page.cookies;
+    logger.debug(`[Auth] Cookies obtidos: ${Object.keys(cookies).join(", ") || "nenhum"}`);
+  } catch (e) {
+    logger.warn(`[Auth] Não foi possível obter cookies: ${e.message}`);
+  }
+
   const payload = { username, token, two_factor: twoFactor, fingerprint };
-  const result = await postForm(LOGIN_URL, payload);
+  logger.debug(`[Auth] Payload: ${JSON.stringify({ ...payload, token: "***" })}`);
+
+  const result = await postForm(LOGIN_URL, payload, cookieString(cookies));
+  logger.debug(`[Auth] Resposta: ${JSON.stringify(result.body)}`);
 
   if (!result.body?.success) {
     // Tenta próximo window TOTP se der erro de 2FA
     if (twoFaSecret && result.body?.error?.includes("2fa")) {
       const nextCode = generateTOTP(twoFaSecret, 1);
       logger.warn(`[Auth] Código TOTP expirado, tentando próximo window: ${nextCode}`);
-      const retry = await postForm(LOGIN_URL, { ...payload, two_factor: nextCode });
+      const retry = await postForm(LOGIN_URL, { ...payload, two_factor: nextCode }, cookieString(cookies));
       if (retry.body?.success && retry.body?.data) {
         return extractSocketToken(retry.body.data);
       }
