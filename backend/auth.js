@@ -128,10 +128,25 @@ function rawPost(url, payload) {
 
 function extractResult(body, cookie) {
   const data = body?.data ?? body ?? {};
-  // Para WebSocket do chat precisamos do socketToken
+
+  // Log all fields to identify which token is the socketToken
+  logger.debug(`[Auth] Campos em data: ${Object.keys(data).join(", ")}`);
+  logger.debug(`[Auth] data.socketToken=${data.socketToken ? data.socketToken.slice(0,20)+"…" : "undefined"}`);
+  logger.debug(`[Auth] data.token=${data.token ? String(data.token).slice(0,20)+"…" : "undefined"}`);
+  logger.debug(`[Auth] data.access_token=${data.access_token ? String(data.access_token).slice(0,20)+"…" : "undefined"}`);
+
   const socketToken =
     data.socketToken ?? data.socket_token ?? data.access_token ?? data.accessToken ?? data.token ?? "";
   if (!socketToken && !cookie) return null;
+
+  const usedField = data.socketToken ? "socketToken"
+    : data.socket_token ? "socket_token"
+    : data.access_token ? "access_token"
+    : data.accessToken ? "accessToken"
+    : data.token ? "token"
+    : "cookie-only";
+  logger.info(`[Auth] Usando campo '${usedField}' como socketToken`);
+
   return {
     socketToken,
     cookie,
