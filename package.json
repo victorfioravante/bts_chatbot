@@ -1,0 +1,33 @@
+{
+  "name": "bitsler-bot",
+  "version": "1.0.0",
+  "description": "Bitsler Chat Bot - Rain Monitor & Auto Message",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "node backend/index.js",
+    "dev": "nodemon backend/index.js",
+    "frontend": "cd frontend && npm run dev",
+    "electron": "electron .",
+    "electron:dev": "concurrently \"npm run start\" \"npm run frontend\" \"wait-on http://localhost:3001/api/v1/status && electron .\"",
+    "build": "cd frontend && npm run build",
+    "package": "electron-builder"
+  },
+  "dependencies": {
+    "@msgpack/msgpack": "^3.0.0",
+    "better-sqlite3": "^9.6.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "node-cron": "^3.0.3",
+    "socket.io-client": "^4.7.5",
+    "winston": "^3.13.0",
+    "winston-daily-rotate-file": "^5.0.0"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3",
+    "nodemon": "^3.1.4",
+    "wait-on": "^7.2.0"
+  }
+}

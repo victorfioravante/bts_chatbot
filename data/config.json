@@ -1,0 +1,73 @@
+{
+  "connection": {
+    "autoConnect": true,
+    "reconnectDelay": 5000,
+    "maxReconnectAttempts": 10
+  },
+  "channels": {
+    "autoJoin": ["en", "br", "system"],
+    "monitor": ["system", "en", "br"]
+  },
+  "rainMonitor": {
+    "enabled": true,
+    "sound": true,
+    "nativeNotification": true,
+    "webhookUrl": ""
+  },
+  "autoMessage": {
+    "enabled": true,
+    "profiles": [
+      {
+        "id": "rain-en",
+        "nome": "Rain Ativo Ingles",
+        "canais": ["en"],
+        "mensagens": [
+          "Good luck everyone! Hope the rain comes soon",
+          "Having a great time here at Bitsler today",
+          "Let's go everyone, good vibes only here",
+          "Enjoying the chat, hope everyone is doing well",
+          "Stay positive and keep playing everyone",
+          "This is such a great community to be part of",
+          "Wishing everyone lots of luck today here",
+          "Great atmosphere in this chat right now",
+          "Hope everyone is having an amazing day today",
+          "Sending good energy to all players here"
+        ],
+        "intervaloMin": 480,
+        "intervaloMax": 520,
+        "ativo": true,
+        "horarioInicio": "00:00",
+        "horarioFim": "23:59",
+        "pausarDuranteRain": false
+      },
+      {
+        "id": "rain-br",
+        "nome": "Rain Ativo Portugues",
+        "canais": ["br"],
+        "mensagens": [
+          "Boa sorte para todos aqui no chat hoje",
+          "Que venha muita chuva para todos nós aqui",
+          "Curtindo muito o chat do Bitsler hoje aqui",
+          "Boa energia para todos os jogadores aqui",
+          "Espero que todos estejam tendo um bom dia",
+          "Que a sorte esteja com todos vocês hoje",
+          "Adorando a comunidade do Bitsler muito mesmo",
+          "Mandando energia positiva para todo mundo aqui",
+          "Que venha bastante sorte para todos nós",
+          "Bitsler e a melhor plataforma de apostas online"
+        ],
+        "intervaloMin": 480,
+        "intervaloMax": 520,
+        "ativo": true,
+        "horarioInicio": "00:00",
+        "horarioFim": "23:59",
+        "pausarDuranteRain": false
+      }
+    ]
+  },
+  "ui": {
+    "theme": "dark",
+    "language": "pt-BR",
+    "historyLimit": 200
+  }
+}
