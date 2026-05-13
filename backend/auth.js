@@ -157,6 +157,64 @@ function extractResult(body, cookie) {
   };
 }
 
+// ─── Busca socketToken via API autenticada ───────────────────────────────────
+
+function getJson(url, accessToken, cookie) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const lib = parsed.protocol === "https:" ? https : http;
+    const headers = {
+      ...FORM_HEADERS,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    };
+    if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
+    if (cookie) headers["Cookie"] = cookie;
+
+    const req = lib.request(
+      { hostname: parsed.hostname, path: parsed.pathname + parsed.search, method: "GET", headers },
+      (res) => {
+        let data = "";
+        res.on("data", (c) => (data += c));
+        res.on("end", () => {
+          try { resolve({ status: res.statusCode, body: JSON.parse(data) }); }
+          catch { resolve({ status: res.statusCode, body: null }); }
+        });
+      }
+    );
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+async function fetchSocketTokenFromUserApi(accessToken, cookie) {
+  const base = "https://www.bitsler.com";
+  const endpoints = [
+    `${base}/api/users/me`,
+    `${base}/api/user`,
+    `${base}/api/users/info`,
+    `${base}/api/chat/token`,
+  ];
+
+  for (const url of endpoints) {
+    try {
+      const { status, body } = await getJson(url, accessToken, cookie);
+      logger.debug(`[Auth] ${url} → ${status}: ${JSON.stringify(body)?.slice(0, 200)}`);
+      if (status === 200 && body) {
+        const data = body?.data ?? body ?? {};
+        const st = data.socketToken ?? data.socket_token ?? data.chatToken ?? data.chat_token;
+        if (st) {
+          logger.info(`[Auth] socketToken encontrado em ${url}`);
+          return st;
+        }
+      }
+    } catch (e) {
+      logger.debug(`[Auth] ${url} falhou: ${e.message}`);
+    }
+  }
+  return null;
+}
+
 // ─── Fluxo de senha em dois passos ───────────────────────────────────────────
 
 async function twoStepPassword(username, password, twoFactor, fingerprint) {
@@ -232,10 +290,20 @@ async function login() {
         logger.info(`[Auth] Login via ${label}...`);
         const { body, cookie } = await rawPost(LOGIN_URL, payload);
         const result = extractResult(body, cookie);
+
         if (result?.socketToken) {
-          logger.info("[Auth] Login OK — socketToken obtido.");
+          logger.info("[Auth] Login OK — socketToken obtido diretamente.");
           return result.socketToken;
         }
+
+        // Login deu certo mas não retornou socketToken diretamente.
+        // Tenta buscar o socketToken via endpoint de usuário usando access_token.
+        if (result?.token || result?.cookie) {
+          logger.info("[Auth] Login OK — buscando socketToken via /api/users/me...");
+          const st = await fetchSocketTokenFromUserApi(result.token, result.cookie);
+          if (st) return st;
+        }
+
         logger.warn(`[Auth] ${label}: sem socketToken na resposta — ${JSON.stringify(body?.data)}`);
       } catch (e) {
         logger.warn(`[Auth] ${label} rejeitado: ${e.message}`);
@@ -274,8 +342,9 @@ let _tokenObtainedAt = 0;
 const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hora
 
 async function getSocketToken(forceRefresh = false) {
-  // Token manual sem credenciais de login
-  if (!process.env.BITSLER_USERNAME && process.env.SOCKET_TOKEN) {
+  // SOCKET_TOKEN manual sempre tem prioridade — independente de ter USERNAME
+  if (process.env.SOCKET_TOKEN) {
+    logger.info("[Auth] Usando SOCKET_TOKEN manual do .env");
     return process.env.SOCKET_TOKEN;
   }
 
