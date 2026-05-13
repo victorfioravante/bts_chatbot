@@ -1,14 +1,10 @@
 const { encode, decode } = require("@msgpack/msgpack");
 
-// Custom Socket.io parser using MessagePack (mirrors the official Bitsler client)
+// socket.io-client v4.7+ expects encode() to return the array directly (no callback)
 class MsgpackEncoder {
-  constructor() {
-    this.encoding = false;
-  }
-
-  encode(packet, callback) {
+  encode(packet) {
     const encoded = encode([packet.type, packet.nsp || "/", packet.data, packet.id]);
-    callback([encoded]);
+    return [encoded];
   }
 }
 
