@@ -6,6 +6,26 @@ const config = require("../config");
 const eventBus = require("../eventBus");
 const auth = require("../auth");
 
+// Parser selection via env: "msgpack" (default), "official", "none"
+function buildParser() {
+  const mode = process.env.PARSER_MODE || "official";
+  if (mode === "none") {
+    logger.info("[WS] Parser: nenhum (JSON padrão)");
+    return undefined;
+  }
+  if (mode === "official") {
+    try {
+      const p = require("socket.io-msgpack-parser");
+      logger.info("[WS] Parser: socket.io-msgpack-parser (oficial)");
+      return p;
+    } catch {
+      logger.warn("[WS] socket.io-msgpack-parser não instalado, usando custom");
+    }
+  }
+  logger.info("[WS] Parser: custom msgpack (@msgpack/msgpack)");
+  return { Encoder: MsgpackEncoder, Decoder: MsgpackDecoder };
+}
+
 // Faz um GET raw ao endpoint de polling para ver a resposta do servidor
 function probePollingEndpoint(socketToken, fingerprint) {
   return new Promise((resolve) => {
@@ -86,10 +106,11 @@ async function connect() {
 
   // Polling primeiro (HTTP) para enviar auth headers — depois upgrade para WS.
   // extraHeaders no nível raiz garante envio em ambos os transports no Node.js.
+  const parser = buildParser();
   socket = io("https://ws.bitsler.com", {
     path: "/chat",
     autoConnect: false,
-    parser: MsgpackParser,
+    ...(parser ? { parser } : {}),
     reconnection: false,
     transports: ["polling", "websocket"],
     extraHeaders: {

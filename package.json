@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@msgpack/msgpack": "^3.0.0",
+    "socket.io-msgpack-parser": "^3.0.0",
     "better-sqlite3": "^9.6.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
