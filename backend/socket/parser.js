@@ -1,4 +1,5 @@
 const { encode, decode } = require("@msgpack/msgpack");
+const { EventEmitter } = require("events");
 
 // socket.io-client v4.7+ expects encode() to return the array directly (no callback)
 class MsgpackEncoder {
@@ -8,16 +9,8 @@ class MsgpackEncoder {
   }
 }
 
-class MsgpackDecoder {
-  constructor() {
-    this.callbacks = {};
-  }
-
-  on(event, cb) {
-    this.callbacks[event] = cb;
-    return this;
-  }
-
+// Extends EventEmitter so socket.io-client can call on/off/emit during cleanup
+class MsgpackDecoder extends EventEmitter {
   add(data) {
     let decoded;
     if (data instanceof ArrayBuffer || Buffer.isBuffer(data)) {
@@ -30,12 +23,12 @@ class MsgpackDecoder {
     const packet = { type, nsp: nsp || "/", data: body };
     if (id !== undefined) packet.id = id;
 
-    if (this.callbacks["decoded"]) {
-      this.callbacks["decoded"](packet);
-    }
+    this.emit("decoded", packet);
   }
 
-  destroy() {}
+  destroy() {
+    this.removeAllListeners();
+  }
 }
 
 module.exports = { MsgpackEncoder, MsgpackDecoder };
