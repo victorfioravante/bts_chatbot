@@ -5,6 +5,7 @@ const eventBus = require("../eventBus");
 
 // In-memory chat history per channel
 const chatHistory = {};
+let _loggedStructure = false;
 const MAX_HISTORY = 200;
 
 function pushMessage(msg) {
@@ -59,6 +60,12 @@ function register(socket) {
     // Store messages from public channels
     const publicChannels = ["en", "br", "fr", "in", "id", "ph", "ru", "es", "pk", "rs", "system"];
     if (data.channel && publicChannels.includes(data.channel)) {
+      // Log estrutura completa da primeira mensagem para diagnóstico
+      if (!_loggedStructure) {
+        logger.info(`[MSG-STRUCT] event="${event}" keys=${Object.keys(data).join(",")}`);
+        logger.info(`[MSG-STRUCT] data=${JSON.stringify(data).slice(0, 400)}`);
+        _loggedStructure = true;
+      }
       const stored = { ...data, _event: event, _receivedAt: Date.now() };
       pushMessage(stored);
       triviaDetector.analyze(stored);
