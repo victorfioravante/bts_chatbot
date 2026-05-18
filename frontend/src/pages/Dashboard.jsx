@@ -27,7 +27,7 @@ export default function Dashboard() {
 
   const { data: status } = useQuery({
     queryKey: ["status"],
-    queryFn: () => fetch("http://localhost:3001/api/v1/status").then((r) => r.json()),
+    queryFn: () => fetch("/api/v1/status").then((r) => r.json()),
     refetchInterval: 5000,
   });
 

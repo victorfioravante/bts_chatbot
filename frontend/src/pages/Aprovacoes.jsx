@@ -75,12 +75,16 @@ export default function Aprovacoes() {
       .then((r) => r.json())
       .then((data) => {
         if (data.ok) {
-          setSendFeedback({ ok: true, msg: `Enviado para [${manualChannel}]` });
+          setSendFeedback({ ok: true, msg: `✓ Enviado para [${manualChannel}] — verifique o terminal do backend` });
           setManualMessage("");
         } else {
-          setSendFeedback({ ok: false, msg: "Falha ao enviar — socket desconectado?" });
+          setSendFeedback({ ok: false, msg: `✗ ok=false — socket conectado? Veja o terminal.` });
         }
-        setTimeout(() => setSendFeedback(null), 3000);
+        setTimeout(() => setSendFeedback(null), 6000);
+      })
+      .catch((err) => {
+        setSendFeedback({ ok: false, msg: `✗ Erro de rede: ${err.message}` });
+        setTimeout(() => setSendFeedback(null), 6000);
       });
   };
 

@@ -227,6 +227,7 @@ function emit(event, data) {
     logger.warn(`Tentativa de emitir '${event}' sem conexao ativa`);
     return false;
   }
+  logger.info(`[WS-emit] ${event} ${JSON.stringify(data)}`);
   socket.emit(event, data);
   return true;
 }

@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "../store";
 import { Settings2, Send, Gamepad2, Trophy } from "lucide-react";
 
-const BACKEND = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
+const API = "/api/v1";
 
 function TriviaBanner({ triviaEvents }) {
   const [customAnswer, setCustomAnswer] = useState("");
@@ -13,7 +13,7 @@ function TriviaBanner({ triviaEvents }) {
   if (!last || (last.type !== "hint" && last.type !== "gameOver")) return null;
 
   const sendAnswer = (word, channel) => {
-    fetch(`${BACKEND}/api/v1/say`, {
+    fetch(`${API}/say`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ channel: channel || "en", message: word }),
@@ -126,14 +126,14 @@ export default function Monitor() {
 
   const { data: cfg } = useQuery({
     queryKey: ["config"],
-    queryFn: () => fetch("http://localhost:3001/api/v1/config").then((r) => r.json()),
+    queryFn: () => fetch("/api/v1/config").then((r) => r.json()),
   });
 
   const activeChannels = new Set(cfg?.channels?.autoJoin || ["en", "br", "system"]);
 
   const saveChannels = useMutation({
     mutationFn: (channels) =>
-      fetch("http://localhost:3001/api/v1/config", {
+      fetch("/api/v1/config", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ channels: { autoJoin: channels } }),
@@ -142,7 +142,7 @@ export default function Monitor() {
   });
 
   const joinChannel = (ch) => {
-    fetch("http://localhost:3001/api/v1/join", {
+    fetch("/api/v1/join", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ channel: ch }),
