@@ -23,11 +23,11 @@ function timeAgo(ts) {
 }
 
 export default function Dashboard() {
-  const { connected, rainsToday, lastRain, autoMsgStats, setUptime } = useStore();
+  const { connected: sseConnected, rainsToday, lastRain, autoMsgStats, setUptime, setConnected } = useStore();
 
   const { data: status } = useQuery({
     queryKey: ["status"],
-    queryFn: () => fetch("/api/v1/status").then((r) => r.json()),
+    queryFn: () => fetch("http://localhost:3001/api/v1/status").then((r) => r.json()),
     refetchInterval: 5000,
   });
 
@@ -44,9 +44,11 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    if (status?.uptime) setUptime(status.uptime);
+    if (status?.uptime !== undefined) setUptime(status.uptime);
+    if (status?.connected !== undefined) setConnected(status.connected);
   }, [status]);
 
+  const connected = status?.connected ?? sseConnected;
   const uptime = status?.uptime || 0;
   const stats = rainStats || {};
   const last = stats.lastRain || lastRain;

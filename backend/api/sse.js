@@ -1,4 +1,5 @@
 const eventBus = require("../eventBus");
+const socketClient = require("../socket/client");
 
 // Active SSE clients
 const clients = new Set();
@@ -7,6 +8,7 @@ function sseMiddleware(req, res) {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
+  res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders();
 
@@ -15,6 +17,9 @@ function sseMiddleware(req, res) {
   };
 
   clients.add(send);
+
+  // Envia estado atual imediatamente para o novo cliente
+  send("status", { connected: socketClient.isConnected(), uptime: socketClient.getUptime() });
 
   // Heartbeat to keep connection alive
   const heartbeat = setInterval(() => {
