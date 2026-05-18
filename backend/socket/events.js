@@ -56,66 +56,65 @@ function register(socket) {
     logger.error(`[CHAT-ERROR] ${JSON.stringify(data)}`);
   });
 
-  // Log ALL events por 60s para diagnóstico
-  const diagEnd = Date.now() + 60_000;
-  socket.onAny((event, ...args) => {
-    if (Date.now() < diagEnd) {
-      const d = args[0];
-      const keys = d && typeof d === "object" ? Object.keys(d).join(",") : typeof d;
-      logger.info(`[DIAG] event="${event}" keys=${keys}`);
+  // Mensagens em tempo real chegam no evento "msg"
+  const publicChannels = ["en", "br", "fr", "in", "id", "ph", "ru", "es", "pk", "rs", "system"];
+  socket.on("msg", (data) => {
+    if (!data || typeof data !== "object") return;
+    const channel = data.channelName || data.channel;
+    if (!channel || !publicChannels.includes(channel)) return;
+
+    const stored = {
+      username: data.username,
+      channel,
+      message: data.message || "",
+      mid: data.mid,
+      timestamp: data.timestamp || Math.floor(Date.now() / 1000),
+      type: data.type,
+      bot: data.bot,
+      _event: "msg",
+      _receivedAt: Date.now(),
+    };
+
+    // Detecta rain pelo bot de rain
+    const rainBots = ["Chat Rain", "Drizzle Bot", "Drizzle"];
+    if (rainBots.includes(data.username)) {
+      rainMonitor.handle({ ...stored, comment: data.message });
+    }
+
+    pushMessage(stored);
+    triviaDetector.analyze(stored);
+
+    if (["Tip Bot", "Tip"].includes(data.username)) {
+      logger.info(`[TIP] ${JSON.stringify(data)}`);
+      eventBus.emit("tip", data);
     }
   });
 
-  // Main message event — Bitsler sends chat messages via this event name
+  // Eventos de sistema/rain via onAny (history no join, eventos especiais)
   socket.onAny((event, ...args) => {
+    if (event === "msg") return; // já tratado acima
     const data = args[0];
     if (!data || typeof data !== "object") return;
 
-    // Detect rain events in system channel
-    if (data.type === "rain" || (data.system === true && data.type === "say")) {
-      rainMonitor.handle(data);
-    }
+    if (data.type === "rain") rainMonitor.handle(data);
 
-    // Detect Chat Rain / Drizzle bot messages in system channel
-    const rainBots = ["Chat Rain", "Drizzle Bot", "Drizzle"];
-    const tipBots = ["Tip Bot", "Tip"];
-    if (rainBots.includes(data.username)) {
-      rainMonitor.handle({ ...data, _event: event });
-    }
-
-    // Store messages from public channels
-    const publicChannels = ["en", "br", "fr", "in", "id", "ph", "ru", "es", "pk", "rs", "system"];
-    if (data.channel && publicChannels.includes(data.channel)) {
-      // Bitsler envia mensagens dentro de history:[{mid, message(html)}]
-      if (Array.isArray(data.history) && data.history.length > 0) {
-        for (const item of data.history) {
-          const text = stripHtml(item.message || "");
-          if (!text) continue;
-          const stored = {
-            username: item.username || data.username,
-            channel: data.channel,
-            message: text,
-            mid: item.mid,
-            timestamp: item.timestamp || Math.floor(Date.now() / 1000),
-            _event: event,
-            _receivedAt: Date.now(),
-          };
-          pushMessage(stored);
-          triviaDetector.analyze(stored);
-        }
-      } else {
-        // Fallback para formato direto
-        const text = data.message || data.comment || "";
-        const stored = { ...data, message: text, _event: event, _receivedAt: Date.now() };
+    // History no join: array de msgs antigas
+    const ch = data.channel || data.channelName;
+    if (ch && publicChannels.includes(ch) && Array.isArray(data.history)) {
+      for (const item of data.history) {
+        const text = stripHtml(item.message || "");
+        if (!text) continue;
+        const stored = {
+          username: item.username || data.username,
+          channel: ch,
+          message: text,
+          mid: item.mid,
+          timestamp: item.timestamp || Math.floor(Date.now() / 1000),
+          _event: event,
+          _receivedAt: Date.now(),
+        };
         pushMessage(stored);
-        triviaDetector.analyze(stored);
       }
-    }
-
-    // Log tip bot activity
-    if (tipBots.includes(data.username)) {
-      logger.info(`[TIP] ${JSON.stringify(data)}`);
-      eventBus.emit("tip", data);
     }
   });
 }
