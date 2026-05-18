@@ -63,6 +63,11 @@ function register(socket) {
     const channel = data.channelName || data.channel;
     if (!channel || !publicChannels.includes(channel)) return;
 
+    // Log system channel para mapear formato do rain
+    if (channel === "system") {
+      logger.info(`[SYS-MSG] user="${data.username}" msg="${(data.message || "").slice(0, 200)}"`);
+    }
+
     const stored = {
       username: data.username,
       channel,
