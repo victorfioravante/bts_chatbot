@@ -6,6 +6,7 @@ export function useSSE() {
     setConnected,
     setSseConnected,
     addMessage,
+    prependHistory,
     addRainEvent,
     setUser,
     setChannels,
@@ -25,7 +26,15 @@ export function useSSE() {
 
       es.addEventListener("open", () => {
         setSseConnected(true);
-        fetch("/api/v1/pending").then((r) => r.json()).then(setPendingMessages).catch(() => {});
+        // Carrega histórico de mensagens e fila pendente de uma vez
+        fetch(`${backendUrl}/api/v1/history?limit=150`)
+          .then((r) => r.json())
+          .then(prependHistory)
+          .catch(() => {});
+        fetch(`${backendUrl}/api/v1/pending`)
+          .then((r) => r.json())
+          .then(setPendingMessages)
+          .catch(() => {});
       });
 
       es.addEventListener("status", (e) => {

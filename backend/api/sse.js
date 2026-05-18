@@ -21,6 +21,7 @@ function sseMiddleware(req, res) {
   // Envia estado atual imediatamente para o novo cliente
   send("status", { connected: socketClient.isConnected(), uptime: socketClient.getUptime() });
 
+
   // Heartbeat to keep connection alive
   const heartbeat = setInterval(() => {
     res.write(": heartbeat\n\n");
