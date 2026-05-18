@@ -24,17 +24,16 @@ export const useStore = create((set, get) => ({
 
   addMessage: (msg) =>
     set((s) => {
-      const msgs = [msg, ...s.messages].slice(0, 500);
+      const msgs = [...s.messages, msg].slice(-500);
       return { messages: msgs };
     }),
 
   prependHistory: (history) =>
     set((s) => {
-      // history chega em ordem cronológica; coloca no final (mais antigos embaixo)
-      const merged = [...s.messages, ...history]
-        .filter((m, i, arr) => arr.findIndex((x) => x._receivedAt === m._receivedAt && x.username === m.username) === i)
-        .slice(0, 500);
-      return { messages: merged };
+      // history já vem em ordem cronológica — vai antes das mensagens live
+      const existing = new Set(s.messages.map((m) => m.mid || m._receivedAt));
+      const fresh = history.filter((m) => !existing.has(m.mid || m._receivedAt));
+      return { messages: [...fresh, ...s.messages].slice(-500) };
     }),
 
   addRainEvent: (event) =>
