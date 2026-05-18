@@ -41,6 +41,62 @@ function handle(data) {
   eventBus.emit("rain", event);
 }
 
+// Known currencies on Bitsler
+const CURRENCIES = ["btc", "eth", "ltc", "doge", "usdt", "bnb", "trx", "xrp", "bch", "sol", "matic", "ada", "dot", "shib", "avax", "link"];
+
+// Patterns for system channel text-based rain announcements:
+// "Chat Rain has rained 0.00001 BTC on 5 users in [en]"
+// "[username] has rained 0.00001 BTC to 10 users"
+// "Drizzle: 0.00001 BTC distributed to 5 users in [br]"
+// "Rain of 0.00001 BTC by [username] to 5 users"
+// "🌧 [username] started a rain of 0.00001 BTC for 5 users"
+const TEXT_RAIN_PATTERNS = [
+  // "X has rained 0.0001 BTC on/to N users [in channel]"
+  /^(?<user>.+?)\s+has\s+rained?\s+(?<amount>[\d.]+)\s+(?<currency>[a-zA-Z]+)\s+(?:on|to)\s+(?<count>\d+)\s+users?/i,
+  // "Rain of 0.0001 BTC by X to N users"
+  /rain\s+of\s+(?<amount>[\d.]+)\s+(?<currency>[a-zA-Z]+)\s+by\s+(?<user>.+?)\s+(?:to|for)\s+(?<count>\d+)\s+users?/i,
+  // "Drizzle: 0.0001 BTC distributed to N users"
+  /drizzle[:\s]+(?<amount>[\d.]+)\s+(?<currency>[a-zA-Z]+)\s+distributed\s+to\s+(?<count>\d+)\s+users?/i,
+  // "🌧 X started a rain of 0.0001 BTC for N users"
+  /(?<user>.+?)\s+started\s+a\s+rain\s+of\s+(?<amount>[\d.]+)\s+(?<currency>[a-zA-Z]+)\s+for\s+(?<count>\d+)\s+users?/i,
+  // Generic: "rain ... 0.0001 BTC" — extract what we can
+  /rain[^.]*?(?<amount>[\d.]+)\s+(?<currency>[a-zA-Z]+)/i,
+];
+
+// Extract channel from "[en]", "(br)", etc.
+function extractChannel(text) {
+  const m = text.match(/[\[(]([a-z]{2})[\])]/i);
+  return m ? m[1].toLowerCase() : null;
+}
+
+function parseTextRain(text, sourceChannel, username) {
+  const clean = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+
+  for (const pattern of TEXT_RAIN_PATTERNS) {
+    const m = clean.match(pattern);
+    if (!m) continue;
+
+    const g = m.groups || {};
+    const currency = (g.currency || "").toLowerCase();
+
+    // Only accept known currencies to avoid false positives
+    if (currency && !CURRENCIES.includes(currency)) continue;
+
+    return {
+      type: "system-rain",
+      username: (g.user || username || "Chat Rain").trim(),
+      currency: currency || "btc",
+      amount: parseFloat(g.amount || 0),
+      recipients: parseInt(g.count || 0, 10) || undefined,
+      channel: extractChannel(clean) || sourceChannel || "system",
+      comment: clean,
+      timestamp: Math.floor(Date.now() / 1000),
+    };
+  }
+
+  return null;
+}
+
 function buildRainEvent(data) {
   // Explicit rain type event
   if (data.type === "rain") {
@@ -57,35 +113,43 @@ function buildRainEvent(data) {
     };
   }
 
-  // Drizzle bot announcement
+  // Drizzle bot announcement (structured)
   if (["Chat Rain", "Drizzle Bot", "Drizzle"].includes(data.username)) {
-    return {
+    // If there's a text message, try to parse it for more detail
+    const text = data.comment || data.message || "";
+    const parsed = text ? parseTextRain(text, data.channel, data.username) : null;
+    return parsed || {
       type: "drizzle",
       username: data.username,
       currency: data.currency || "btc",
       amount: data.amount || 0,
       channel: data.channel || "system",
-      comment: data.comment || data.message || "",
+      comment: text,
       timestamp: data.timestamp || Math.floor(Date.now() / 1000),
       raw: data,
     };
   }
 
-  // System message that mentions rain
-  if (data.system === true && data.type === "say") {
-    const msg = (data.message || data.comment || "").toLowerCase();
-    if (msg.includes("rain") || msg.includes("drizzle")) {
-      return {
-        type: "system-rain",
-        username: data.username || "system",
-        currency: data.currency || "unknown",
-        amount: data.amount || 0,
-        channel: data.channel || "system",
-        comment: data.message || data.comment || "",
-        timestamp: data.timestamp || Math.floor(Date.now() / 1000),
-        raw: data,
-      };
-    }
+  // System channel text message — try to parse rain from the text
+  if (data.channel === "system") {
+    const text = data.message || data.comment || "";
+    const lower = text.toLowerCase();
+    if (!lower.includes("rain") && !lower.includes("drizzle")) return null;
+
+    const parsed = parseTextRain(text, "system", data.username);
+    if (parsed) return { ...parsed, raw: data };
+
+    // Fallback: mention-only (no amount parsed) — still record it
+    return {
+      type: "system-rain",
+      username: data.username || "system",
+      currency: "unknown",
+      amount: 0,
+      channel: "system",
+      comment: text,
+      timestamp: data.timestamp || Math.floor(Date.now() / 1000),
+      raw: data,
+    };
   }
 
   return null;

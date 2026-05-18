@@ -63,7 +63,7 @@ function register(socket) {
     const channel = data.channelName || data.channel;
     if (!channel || !publicChannels.includes(channel)) return;
 
-    // Log system channel para mapear formato do rain
+    // Log system channel for diagnostics
     if (channel === "system") {
       logger.info(`[SYS-MSG] user="${data.username}" msg="${(data.message || "").slice(0, 200)}"`);
     }
@@ -80,9 +80,9 @@ function register(socket) {
       _receivedAt: Date.now(),
     };
 
-    // Detecta rain pelo bot de rain
+    // Detecta rain: bots conhecidos OU qualquer msg do canal system mencionando rain
     const rainBots = ["Chat Rain", "Drizzle Bot", "Drizzle"];
-    if (rainBots.includes(data.username)) {
+    if (rainBots.includes(data.username) || channel === "system") {
       rainMonitor.handle({ ...stored, comment: data.message });
     }
 

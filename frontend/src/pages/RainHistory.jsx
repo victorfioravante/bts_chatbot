@@ -30,23 +30,25 @@ export default function RainHistory() {
                 <th className="px-4 py-2 text-left">Valor</th>
                 <th className="px-4 py-2 text-left">Canal</th>
                 <th className="px-4 py-2 text-left">Remetente</th>
+                <th className="px-4 py-2 text-left">Usuários</th>
                 <th className="px-4 py-2 text-left">Data/Hora</th>
               </tr>
             </thead>
             <tbody>
               {[...rains].reverse().map((r, i) => (
-                <tr key={i} className="border-b border-gray-800 hover:bg-gray-800">
+                <tr key={i} className="border-b border-gray-800 hover:bg-gray-800" title={r.comment || ""}>
                   <td className="px-4 py-2">
                     <div className="flex items-center gap-2">
                       <CloudRain className="w-4 h-4 text-blue-400" />
-                      <span className="text-blue-300 capitalize">{r.type}</span>
+                      <span className="text-blue-300 capitalize">{r.type === "system-rain" ? "system" : r.type}</span>
                     </div>
                   </td>
                   <td className="px-4 py-2 text-white font-semibold">
-                    {r.currency?.toUpperCase()} {r.amount}
+                    {r.amount > 0 ? `${r.currency?.toUpperCase()} ${r.amount}` : <span className="text-gray-500 text-xs">—</span>}
                   </td>
                   <td className="px-4 py-2 text-gray-300">{r.channel}</td>
                   <td className="px-4 py-2 text-purple-300">{r.username}</td>
+                  <td className="px-4 py-2 text-gray-400">{r.recipients ?? "—"}</td>
                   <td className="px-4 py-2 text-gray-400">{formatTs(r.timestamp)}</td>
                 </tr>
               ))}
