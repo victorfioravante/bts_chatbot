@@ -52,6 +52,16 @@ function register(socket) {
     logger.debug(`Joined silently: ${data?.channel}`);
   });
 
+  // Log ALL events por 60s para diagnóstico
+  const diagEnd = Date.now() + 60_000;
+  socket.onAny((event, ...args) => {
+    if (Date.now() < diagEnd) {
+      const d = args[0];
+      const keys = d && typeof d === "object" ? Object.keys(d).join(",") : typeof d;
+      logger.info(`[DIAG] event="${event}" keys=${keys}`);
+    }
+  });
+
   // Main message event — Bitsler sends chat messages via this event name
   socket.onAny((event, ...args) => {
     const data = args[0];
