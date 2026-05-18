@@ -227,8 +227,13 @@ function emit(event, data) {
     logger.warn(`Tentativa de emitir '${event}' sem conexao ativa`);
     return false;
   }
-  logger.info(`[WS-emit] ${event} ${JSON.stringify(data)}`);
-  socket.emit(event, data);
+  // Bitsler usa "comment" como campo de texto no chat
+  let payload = data;
+  if (event === "say" && data.message !== undefined) {
+    payload = { ...data, comment: data.message };
+  }
+  logger.info(`[WS-emit] ${event} ${JSON.stringify(payload)}`);
+  socket.emit(event, payload);
   return true;
 }
 

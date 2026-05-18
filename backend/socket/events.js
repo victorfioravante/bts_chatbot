@@ -52,6 +52,10 @@ function register(socket) {
     logger.debug(`Joined silently: ${data?.channel}`);
   });
 
+  socket.on("chat:error", (data) => {
+    logger.error(`[CHAT-ERROR] ${JSON.stringify(data)}`);
+  });
+
   // Log ALL events por 60s para diagnóstico
   const diagEnd = Date.now() + 60_000;
   socket.onAny((event, ...args) => {
