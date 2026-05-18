@@ -10,6 +10,8 @@ export function useSSE() {
     setUser,
     setChannels,
     setAutoMsgStats,
+    handlePendingEvent,
+    setPendingMessages,
   } = useStore();
 
   const esRef = useRef(null);
@@ -19,7 +21,10 @@ export function useSSE() {
       const es = new EventSource("/api/v1/sse");
       esRef.current = es;
 
-      es.addEventListener("open", () => setSseConnected(true));
+      es.addEventListener("open", () => {
+        setSseConnected(true);
+        fetch("/api/v1/pending").then((r) => r.json()).then(setPendingMessages).catch(() => {});
+      });
 
       es.addEventListener("status", (e) => {
         const data = JSON.parse(e.data);
@@ -44,11 +49,20 @@ export function useSSE() {
       es.addEventListener("user", (e) => setUser(JSON.parse(e.data)));
       es.addEventListener("channels", (e) => setChannels(JSON.parse(e.data)));
       es.addEventListener("autoMessageSent", (e) => {
-        // Trigger stats refresh
         fetch("/api/v1/automsg/stats")
           .then((r) => r.json())
           .then(setAutoMsgStats)
           .catch(() => {});
+      });
+
+      es.addEventListener("pendingMessage", (e) => {
+        const data = JSON.parse(e.data);
+        handlePendingEvent(data);
+        if (data.type === "added" && "Notification" in window && Notification.permission === "granted") {
+          new Notification("Mensagem aguardando aprovação", {
+            body: `[${data.item.channel}] ${data.item.message}`,
+          });
+        }
       });
 
       es.onerror = () => {

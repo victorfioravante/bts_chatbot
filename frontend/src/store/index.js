@@ -12,6 +12,7 @@ export const useStore = create((set, get) => ({
   autoMsgStats: {},
   sseConnected: false,
   rainAlert: null,
+  pendingMessages: [],
 
   setConnected: (v) => set({ connected: v }),
   setUser: (u) => set({ user: u }),
@@ -38,4 +39,19 @@ export const useStore = create((set, get) => ({
 
   clearRainAlert: () => set({ rainAlert: null }),
   setAutoMsgStats: (stats) => set({ autoMsgStats: stats }),
+  setPendingMessages: (msgs) => set({ pendingMessages: msgs }),
+
+  handlePendingEvent: (event) =>
+    set((s) => {
+      if (event.type === "added") {
+        return { pendingMessages: [...s.pendingMessages, event.item] };
+      }
+      if (event.type === "approved" || event.type === "rejected" || event.type === "expired") {
+        return { pendingMessages: s.pendingMessages.filter((m) => m.id !== event.id) };
+      }
+      if (event.type === "cleared") {
+        return { pendingMessages: [] };
+      }
+      return {};
+    }),
 }));

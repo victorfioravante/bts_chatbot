@@ -7,6 +7,7 @@ import Monitor from "./pages/Monitor";
 import AutoMsg from "./pages/AutoMsg";
 import RainHistory from "./pages/RainHistory";
 import Settings from "./pages/Settings";
+import Aprovacoes from "./pages/Aprovacoes";
 
 export default function App() {
   useSSE();
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/monitor" element={<Monitor />} />
           <Route path="/auto" element={<AutoMsg />} />
+          <Route path="/aprovacoes" element={<Aprovacoes />} />
           <Route path="/rain" element={<RainHistory />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>

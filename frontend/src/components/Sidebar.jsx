@@ -1,17 +1,19 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, MessageSquare, Zap, CloudRain, Settings, Activity } from "lucide-react";
+import { LayoutDashboard, MessageSquare, Zap, CloudRain, Settings, Activity, ShieldCheck } from "lucide-react";
 import { useStore } from "../store";
 
-const links = [
-  { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/monitor", icon: MessageSquare, label: "Monitor" },
-  { to: "/auto", icon: Zap, label: "Auto-Msgs" },
-  { to: "/rain", icon: CloudRain, label: "Histórico Rain" },
-  { to: "/settings", icon: Settings, label: "Configurações" },
-];
-
 export function Sidebar() {
-  const { connected, sseConnected } = useStore();
+  const { connected, sseConnected, pendingMessages } = useStore();
+  const pendingCount = pendingMessages.length;
+
+  const links = [
+    { to: "/", icon: LayoutDashboard, label: "Dashboard" },
+    { to: "/monitor", icon: MessageSquare, label: "Monitor" },
+    { to: "/auto", icon: Zap, label: "Auto-Msgs" },
+    { to: "/aprovacoes", icon: ShieldCheck, label: "Controle", badge: pendingCount },
+    { to: "/rain", icon: CloudRain, label: "Histórico Rain" },
+    { to: "/settings", icon: Settings, label: "Configurações" },
+  ];
 
   return (
     <aside className="w-56 shrink-0 bg-gray-900 border-r border-gray-800 flex flex-col">
@@ -27,7 +29,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 p-3 space-y-1">
-        {links.map(({ to, icon: Icon, label }) => (
+        {links.map(({ to, icon: Icon, label, badge }) => (
           <NavLink
             key={to}
             to={to}
@@ -41,7 +43,12 @@ export function Sidebar() {
             }
           >
             <Icon className="w-4 h-4" />
-            {label}
+            <span className="flex-1">{label}</span>
+            {badge > 0 && (
+              <span className="bg-amber-500 text-black text-xs font-bold px-1.5 py-0.5 rounded-full leading-none">
+                {badge}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>

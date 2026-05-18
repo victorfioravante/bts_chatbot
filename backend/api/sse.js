@@ -45,5 +45,6 @@ eventBus.on("message", (d) => broadcast("message", d));
 eventBus.on("autoMessageSent", (d) => broadcast("autoMessageSent", d));
 eventBus.on("user", (d) => broadcast("user", d));
 eventBus.on("channels", (d) => broadcast("channels", d));
+eventBus.on("pendingMessage", (d) => broadcast("pendingMessage", d));
 
 module.exports = { sseMiddleware, broadcast };

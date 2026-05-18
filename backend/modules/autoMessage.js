@@ -16,6 +16,7 @@ const logger = require("./logger");
 const eventBus = require("../eventBus");
 const config = require("../config");
 const socketClient = require("../socket/client");
+const pendingQueue = require("./pendingQueue");
 
 // Canais válidos para envio (excluem game room e mod room)
 const ALLOWED_CHANNELS = new Set(["en", "br", "fr", "in", "id", "ph", "ru", "es", "pk", "rs"]);
@@ -103,12 +104,21 @@ function sendForProfile(profile) {
     return;
   }
 
+  const approvalMode = cfg.autoMessage.approvalMode === true;
+
   for (const channel of channels) {
     const lastTime = lastSentTimeByChannel[channel] || 0;
     const elapsed = Date.now() - lastTime;
 
     if (elapsed < MIN_INTERVAL_MS) {
       logger.debug(`[AutoMsg] Cooldown ativo para canal '${channel}' (${Math.round(elapsed / 1000)}s)`);
+      continue;
+    }
+
+    if (approvalMode) {
+      pendingQueue.add({ channel, message, profile: profile.nome });
+      lastSentTimeByChannel[channel] = Date.now();
+      recordSent(profile.id, message);
       continue;
     }
 

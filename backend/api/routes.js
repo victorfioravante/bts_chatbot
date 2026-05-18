@@ -4,6 +4,7 @@ const socketClient = require("../socket/client");
 const events = require("../socket/events");
 const rainMonitor = require("../modules/rainMonitor");
 const autoMessage = require("../modules/autoMessage");
+const pendingQueue = require("../modules/pendingQueue");
 const config = require("../config");
 const { sseMiddleware } = require("./sse");
 
@@ -155,6 +156,33 @@ router.post("/profiles/:id/test", (req, res) => {
   if (!profile) return res.status(404).json({ error: "Perfil nao encontrado" });
   autoMessage.sendForProfile(profile);
   res.json({ ok: true });
+});
+
+// ─── Pending Queue ────────────────────────────────────────────────────────────
+
+router.get("/pending", (req, res) => {
+  res.json(pendingQueue.list());
+});
+
+router.get("/pending/stats", (req, res) => {
+  res.json(pendingQueue.getStats());
+});
+
+router.post("/pending/:id/approve", (req, res) => {
+  const result = pendingQueue.approve(req.params.id);
+  if (!result) return res.status(404).json({ error: "Item nao encontrado" });
+  res.json({ ok: true, sent: result.sent });
+});
+
+router.post("/pending/:id/reject", (req, res) => {
+  const item = pendingQueue.reject(req.params.id);
+  if (!item) return res.status(404).json({ error: "Item nao encontrado" });
+  res.json({ ok: true });
+});
+
+router.delete("/pending", (req, res) => {
+  const count = pendingQueue.clear();
+  res.json({ ok: true, cleared: count });
 });
 
 module.exports = router;
