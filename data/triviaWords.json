@@ -1,0 +1,58 @@
+{
+  "crypto_terms": [
+    "ABI", "API", "APR", "APY", "Asic", "Asset", "Atomic", "Altcoin", "Analytics", "Algorithm",
+    "Bot", "BTC", "Burn", "Block", "Bridge", "Bitcoin", "Blockchain",
+    "CEX", "Coin", "Chain", "Custody", "Currency", "Consensus", "Cryptography", "Cryptocurrency", "Cryptoeconomics",
+    "DAO", "Data", "DApp", "DeFi", "Dealer", "Demand", "Digital", "Deposit", "Database", "Distributed", "Decentralization",
+    "Escrow", "Ethereum", "Exchange", "Encryption",
+    "Fee", "Fiat", "Fork", "Fees", "Forum", "Faucet", "Finance", "Finality",
+    "Gas", "Hash", "Hodl", "Hold", "Halving", "Hashrate", "Hyperledger",
+    "ICO", "Immutable", "Inflation", "Investing", "Insurance", "Interchain", "Interoperability",
+    "Key", "KYC",
+    "Ledger", "Liquidity",
+    "Mint", "Miner", "Mining", "Market", "Mainnet", "Multisig", "Metaverse",
+    "NFT", "Node", "Nonce", "Nitro", "Network",
+    "Odds", "Oracle",
+    "Plasma", "Protocol",
+    "Reward", "Rewards",
+    "Satoshi", "Staking", "Storage", "Support", "Sharding", "Security", "Solidity", "Strategy", "Sidechain", "Stablecoin", "Scalability", "Supply",
+    "Table", "Token", "Tokens", "Testnet", "Trading", "Tracking", "Transfer", "Timestamp", "Transaction", "Transactions", "Tokenization",
+    "Validator", "Validation", "Volatility",
+    "Whale", "Wallet", "Withdraw", "Whitepaper", "Withdrawal", "Withdrawing"
+  ],
+  "top100_coins": [
+    "Bitcoin", "Ethereum", "Tether", "BNB", "Solana", "USDC", "XRP", "Dogecoin", "Cardano", "Avalanche",
+    "Shiba", "Polkadot", "Chainlink", "Tron", "Polygon", "Litecoin", "Bitcoin Cash", "Stellar", "Monero", "Cosmos",
+    "Algorand", "VeChain", "Filecoin", "Hedera", "Aptos", "Arbitrum", "Optimism", "Near", "Fantom", "Elrond",
+    "Theta", "Tezos", "EOS", "Aave", "Uniswap", "Maker", "Compound", "Curve", "Synthetix", "Yearn",
+    "Injective", "Render", "Immutable", "Mantle", "Sei", "Sui", "Celestia", "Pyth", "Jupiter", "Jito",
+    "Kaspa", "Ton", "Stacks", "Pepe", "Floki", "Bonk", "Bittensor", "Worldcoin", "Arweave", "Fetch",
+    "Sandbox", "Decentraland", "Axie", "Gala", "Illuvium", "Stepn", "Enjin", "Flow", "Chiliz", "Wax",
+    "Blur", "LooksRare", "Opensea", "Rarible", "Zora",
+    "Ripple", "Litecoin", "Dash", "Zcash", "Nano",
+    "Polkadot", "Kusama", "Acala", "Moonbeam", "Parallel",
+    "Quant", "Chainlink", "Band", "Api3", "Uma",
+    "Ondo", "Pendle", "Ethena", "Renzo", "Kelp",
+    "Notcoin", "Dogs", "Hamster", "Catizen", "Pixelverse"
+  ],
+  "bitsler_terms": [
+    "Rain", "Drizzle", "Chat", "Wager", "Bet", "Spin", "Roll", "Dice", "Crash", "Limbo",
+    "Plinko", "Wheel", "Hilo", "Mines", "Keno", "Baccarat", "Blackjack", "Roulette", "Slots", "Poker",
+    "Jackpot", "Bonus", "Promo", "VIP", "Rank", "Level", "Points", "Wagering", "Cashback", "Rakeback",
+    "Deposit", "Withdraw", "Tip", "Rain", "Faucet", "Challenge", "Leaderboard", "Tournament", "Prize",
+    "Affiliate", "Referral", "Code", "Balance", "Currency", "Multiplier", "Odds", "House", "Edge",
+    "Provably", "Fair", "Seed", "Hash", "Nonce", "Verify", "Result", "Win", "Lose", "Profit",
+    "Autobet", "Strategy", "Martingale", "Fibonacci", "Paroli", "Dalembert",
+    "Support", "Chat", "Moderator", "Admin", "Ban", "Mute", "Warning"
+  ],
+  "casino_terms": [
+    "Ace", "Ante", "Baccarat", "Banker", "Bankroll", "Bet", "Blackjack", "Blind", "Bluff", "Bonus",
+    "Bust", "Call", "Card", "Casino", "Check", "Chip", "Croupier", "Cut", "Deal", "Dealer",
+    "Deck", "Double", "Down", "Draw", "Edge", "Fold", "Flush", "Full", "House", "Gamble",
+    "Hand", "Hit", "Hold", "Hole", "Insurance", "Jackpot", "Joker", "Keno", "Limit", "Loose",
+    "Martingale", "Match", "Maximum", "Minimum", "Natural", "Odds", "Pair", "Pass", "Payout", "Player",
+    "Poker", "Pot", "Push", "Raise", "Rake", "Random", "River", "Roll", "Roulette", "Royal",
+    "Shoe", "Shuffle", "Slot", "Spin", "Split", "Stake", "Stand", "Straight", "Street", "Table",
+    "Tie", "Token", "Trip", "Turn", "Variance", "Wager", "Wild", "Win", "Zero", "Flush"
+  ]
+}

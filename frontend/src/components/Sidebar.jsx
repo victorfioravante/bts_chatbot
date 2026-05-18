@@ -1,9 +1,9 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, MessageSquare, Zap, CloudRain, Settings, Activity, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, MessageSquare, Zap, CloudRain, Settings, Activity, ShieldCheck, Gamepad2 } from "lucide-react";
 import { useStore } from "../store";
 
 export function Sidebar() {
-  const { connected, sseConnected, pendingMessages } = useStore();
+  const { connected, sseConnected, pendingMessages, triviaActive } = useStore();
   const pendingCount = pendingMessages.length;
 
   const links = [
@@ -11,6 +11,7 @@ export function Sidebar() {
     { to: "/monitor", icon: MessageSquare, label: "Monitor" },
     { to: "/auto", icon: Zap, label: "Auto-Msgs" },
     { to: "/aprovacoes", icon: ShieldCheck, label: "Controle", badge: pendingCount },
+    { to: "/trivia", icon: Gamepad2, label: "Trivia", pulse: triviaActive },
     { to: "/rain", icon: CloudRain, label: "Histórico Rain" },
     { to: "/settings", icon: Settings, label: "Configurações" },
   ];
@@ -29,7 +30,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 p-3 space-y-1">
-        {links.map(({ to, icon: Icon, label, badge }) => (
+        {links.map(({ to, icon: Icon, label, badge, pulse }) => (
           <NavLink
             key={to}
             to={to}
@@ -42,12 +43,15 @@ export function Sidebar() {
               }`
             }
           >
-            <Icon className="w-4 h-4" />
+            <Icon className={`w-4 h-4 ${pulse ? "text-amber-400" : ""}`} />
             <span className="flex-1">{label}</span>
             {badge > 0 && (
               <span className="bg-amber-500 text-black text-xs font-bold px-1.5 py-0.5 rounded-full leading-none">
                 {badge}
               </span>
+            )}
+            {pulse && (
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
             )}
           </NavLink>
         ))}

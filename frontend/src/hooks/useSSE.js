@@ -12,6 +12,7 @@ export function useSSE() {
     setAutoMsgStats,
     handlePendingEvent,
     setPendingMessages,
+    addTriviaEvent,
   } = useStore();
 
   const esRef = useRef(null);
@@ -53,6 +54,18 @@ export function useSSE() {
           .then((r) => r.json())
           .then(setAutoMsgStats)
           .catch(() => {});
+      });
+
+      es.addEventListener("triviaEvent", (e) => {
+        const data = JSON.parse(e.data);
+        addTriviaEvent(data);
+        if (data.type === "hint" && "Notification" in window && Notification.permission === "granted") {
+          const sugs = data.suggestions?.slice(0, 3).join(", ") || "sem sugestões";
+          new Notification("Trivia detectado!", { body: `${data.hintRaw} → ${sugs}` });
+        }
+        if (data.type === "triviaWordAdded") {
+          window.dispatchEvent(new Event("triviaWordAdded"));
+        }
       });
 
       es.addEventListener("pendingMessage", (e) => {

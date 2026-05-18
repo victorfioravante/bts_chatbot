@@ -5,6 +5,7 @@ const events = require("../socket/events");
 const rainMonitor = require("../modules/rainMonitor");
 const autoMessage = require("../modules/autoMessage");
 const pendingQueue = require("../modules/pendingQueue");
+const triviaDetector = require("../modules/triviaDetector");
 const config = require("../config");
 const { sseMiddleware } = require("./sse");
 
@@ -183,6 +184,57 @@ router.post("/pending/:id/reject", (req, res) => {
 router.delete("/pending", (req, res) => {
   const count = pendingQueue.clear();
   res.json({ ok: true, cleared: count });
+});
+
+// ─── Trivia ───────────────────────────────────────────────────────────────────
+
+router.get("/trivia/themes", (req, res) => {
+  res.json({ themes: triviaDetector.THEMES, active: triviaDetector.getTheme() });
+});
+
+router.put("/trivia/theme", (req, res) => {
+  const { theme } = req.body;
+  if (!theme) return res.status(400).json({ error: "theme required" });
+  const ok = triviaDetector.setTheme(theme);
+  if (!ok) return res.status(400).json({ error: "Tema inválido" });
+  res.json({ theme });
+});
+
+router.get("/trivia/words", (req, res) => {
+  const { theme } = req.query;
+  if (theme) {
+    res.json(triviaDetector.loadWords(theme));
+  } else {
+    res.json(triviaDetector.loadData());
+  }
+});
+
+router.post("/trivia/words", (req, res) => {
+  const { word, theme } = req.body;
+  if (!word) return res.status(400).json({ error: "word required" });
+  const result = triviaDetector.addWord(word, theme);
+  if (!result) return res.status(409).json({ error: "Palavra já existe neste tema" });
+  res.status(201).json(result);
+});
+
+router.delete("/trivia/words/:word", (req, res) => {
+  const { theme } = req.query;
+  const removed = triviaDetector.removeWord(req.params.word, theme);
+  if (!removed) return res.status(404).json({ error: "Palavra não encontrada" });
+  res.json({ ok: true });
+});
+
+router.get("/trivia/game", (req, res) => {
+  res.json(triviaDetector.getActiveGame() || { active: false });
+});
+
+router.post("/trivia/match", (req, res) => {
+  const { hint, theme } = req.body;
+  if (!hint) return res.status(400).json({ error: "hint required" });
+  const parsed = triviaDetector.parseHint(hint);
+  if (!parsed) return res.status(400).json({ error: "Padrão de dica inválido" });
+  const matches = triviaDetector.matchWords(parsed, theme);
+  res.json({ hint: parsed, matches });
 });
 
 module.exports = router;

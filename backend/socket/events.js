@@ -1,5 +1,6 @@
 const logger = require("../modules/logger");
 const rainMonitor = require("../modules/rainMonitor");
+const triviaDetector = require("../modules/triviaDetector");
 const eventBus = require("../eventBus");
 
 // In-memory chat history per channel
@@ -58,7 +59,9 @@ function register(socket) {
     // Store messages from public channels
     const publicChannels = ["en", "br", "fr", "in", "id", "ph", "ru", "es", "pk", "rs", "system"];
     if (data.channel && publicChannels.includes(data.channel)) {
-      pushMessage({ ...data, _event: event, _receivedAt: Date.now() });
+      const stored = { ...data, _event: event, _receivedAt: Date.now() };
+      pushMessage(stored);
+      triviaDetector.analyze(stored);
     }
 
     // Log tip bot activity
