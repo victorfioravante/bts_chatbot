@@ -5,7 +5,19 @@ const eventBus = require("../eventBus");
 
 // In-memory chat history per channel
 const chatHistory = {};
-let _loggedStructure = false;
+
+function stripHtml(html) {
+  return html
+    .replace(/<[^>]+>/g, " ")   // remove tags
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 const MAX_HISTORY = 200;
 
 function pushMessage(msg) {
@@ -60,15 +72,30 @@ function register(socket) {
     // Store messages from public channels
     const publicChannels = ["en", "br", "fr", "in", "id", "ph", "ru", "es", "pk", "rs", "system"];
     if (data.channel && publicChannels.includes(data.channel)) {
-      // Log estrutura completa da primeira mensagem para diagnóstico
-      if (!_loggedStructure) {
-        logger.info(`[MSG-STRUCT] event="${event}" keys=${Object.keys(data).join(",")}`);
-        logger.info(`[MSG-STRUCT] data=${JSON.stringify(data).slice(0, 400)}`);
-        _loggedStructure = true;
+      // Bitsler envia mensagens dentro de history:[{mid, message(html)}]
+      if (Array.isArray(data.history) && data.history.length > 0) {
+        for (const item of data.history) {
+          const text = stripHtml(item.message || "");
+          if (!text) continue;
+          const stored = {
+            username: item.username || data.username,
+            channel: data.channel,
+            message: text,
+            mid: item.mid,
+            timestamp: item.timestamp || Math.floor(Date.now() / 1000),
+            _event: event,
+            _receivedAt: Date.now(),
+          };
+          pushMessage(stored);
+          triviaDetector.analyze(stored);
+        }
+      } else {
+        // Fallback para formato direto
+        const text = data.message || data.comment || "";
+        const stored = { ...data, message: text, _event: event, _receivedAt: Date.now() };
+        pushMessage(stored);
+        triviaDetector.analyze(stored);
       }
-      const stored = { ...data, _event: event, _receivedAt: Date.now() };
-      pushMessage(stored);
-      triviaDetector.analyze(stored);
     }
 
     // Log tip bot activity
