@@ -1,7 +1,97 @@
 import { useRef, useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "../store";
-import { Settings2 } from "lucide-react";
+import { Settings2, Send, Gamepad2, Trophy } from "lucide-react";
+
+const BACKEND = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
+
+function TriviaBanner({ triviaEvents }) {
+  const [customAnswer, setCustomAnswer] = useState("");
+  const [sent, setSent] = useState(null);
+
+  const last = triviaEvents[0];
+  if (!last || (last.type !== "hint" && last.type !== "gameOver")) return null;
+
+  const sendAnswer = (word, channel) => {
+    fetch(`${BACKEND}/api/v1/say`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channel: channel || "en", message: word }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        setSent({ word, ok: d.ok });
+        setTimeout(() => setSent(null), 4000);
+      });
+  };
+
+  if (last.type === "gameOver") {
+    return (
+      <div className="bg-gray-900 border border-gray-700 rounded-xl px-4 py-2 flex items-center gap-3 text-sm">
+        <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
+        <span className="text-gray-400">Jogo encerrado —</span>
+        <span className="text-yellow-300 font-mono font-bold">{last.answer}</span>
+        {last.added && <span className="text-green-400 text-xs">✓ salva</span>}
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-amber-950 border border-amber-700 rounded-xl p-3 space-y-2">
+      <div className="flex items-center gap-2">
+        <Gamepad2 className="w-4 h-4 text-amber-400 shrink-0" />
+        <span className="font-mono text-lg text-white tracking-widest">{last.hintRaw}</span>
+        <span className="ml-auto text-xs text-amber-600">canal: {last.channel}</span>
+      </div>
+
+      {/* Sugestões com botão de envio */}
+      {last.suggestions?.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {last.suggestions.map((w) => (
+            <button
+              key={w}
+              onClick={() => sendAnswer(w, last.channel)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-mono font-bold border transition-colors ${
+                sent?.word === w
+                  ? sent.ok ? "bg-green-800 border-green-600 text-green-200" : "bg-red-900 border-red-700 text-red-200"
+                  : "bg-amber-900 border-amber-700 text-amber-100 hover:bg-amber-800"
+              }`}
+            >
+              {sent?.word === w ? (sent.ok ? "✓ Enviado" : "✗ Falhou") : (
+                <><Send className="w-3 h-3" /> {w}</>
+              )}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-amber-600">Sem sugestões no banco para esse padrão.</p>
+      )}
+
+      {/* Resposta manual */}
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={customAnswer}
+          onChange={(e) => setCustomAnswer(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && customAnswer.trim()) {
+              sendAnswer(customAnswer.trim(), last.channel);
+              setCustomAnswer("");
+            }
+          }}
+          placeholder="Resposta manual (Enter para enviar)..."
+          className="flex-1 bg-gray-900 border border-amber-800 rounded-lg px-3 py-1.5 text-sm text-white placeholder-amber-900 font-mono"
+        />
+        <button
+          onClick={() => { if (customAnswer.trim()) { sendAnswer(customAnswer.trim(), last.channel); setCustomAnswer(""); }}}
+          className="px-3 py-1.5 bg-amber-700 hover:bg-amber-600 text-white rounded-lg text-sm flex items-center gap-1"
+        >
+          <Send className="w-3 h-3" /> Enviar
+        </button>
+      </div>
+    </div>
+  );
+}
 
 const ALL_CHANNELS = ["en", "br", "fr", "in", "id", "ph", "ru", "es", "pk", "rs", "system"];
 
@@ -27,7 +117,7 @@ const CHANNEL_BADGE = {
 };
 
 export default function Monitor() {
-  const { messages } = useStore();
+  const { messages, triviaEvents } = useStore();
   const qc = useQueryClient();
   const [filter, setFilter] = useState("");
   const [showRoomPicker, setShowRoomPicker] = useState(false);
@@ -140,6 +230,9 @@ export default function Monitor() {
           <p className="text-xs text-gray-600">Alterações aplicadas imediatamente — o bot entra na sala na próxima reconexão se ainda não estiver.</p>
         </div>
       )}
+
+      {/* Trivia banner */}
+      <TriviaBanner triviaEvents={triviaEvents} />
 
       {/* Active channel badges */}
       <div className="flex gap-1.5 flex-wrap">

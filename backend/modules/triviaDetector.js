@@ -131,10 +131,12 @@ function getTheme() {
 
 // ─── Message analysis ────────────────────────────────────────────────────────
 
-const TRIVIA_START_RE = /guess\s+the\s+crypto/i;
-const HINT_LINE_RE = /^([a-zA-Z_]\s+)+[a-zA-Z_]$/;
-const GAME_OVER_RE = /game\s+over/i;
-const ANSWER_RE = /answer[:\s]+([a-zA-Z]+)/i;
+const TRIVIA_START_RE = /guess\s+the\s+(crypto|coin|bitsler|casino)/i;
+// Aceita padrões como "A _ _ _" ou "B l _ _ k" com espaços entre cada caractere
+const HINT_LINE_RE = /^[a-zA-Z_](\s+[a-zA-Z_]){1,}$/;
+const GAME_OVER_RE = /game\s*over/i;
+// Captura answer mesmo com markdown bold/italic: **GAME OVER** *answer:* Token
+const ANSWER_RE = /answer[*:\s]+([a-zA-Z]+)/i;
 
 function analyze(msg) {
   const text = (msg.message || msg.comment || "").trim();
