@@ -6,6 +6,17 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
+      "/api/v1/sse": {
+        target: "http://localhost:3001",
+        changeOrigin: true,
+        ws: false,
+        configure: (proxy) => {
+          proxy.on("proxyRes", (proxyRes) => {
+            proxyRes.headers["cache-control"] = "no-cache";
+            proxyRes.headers["x-accel-buffering"] = "no";
+          });
+        },
+      },
       "/api": { target: "http://localhost:3001", changeOrigin: true },
     },
   },
