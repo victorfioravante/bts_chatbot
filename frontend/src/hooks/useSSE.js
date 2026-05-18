@@ -19,7 +19,8 @@ export function useSSE() {
 
   useEffect(() => {
     function connect() {
-      const es = new EventSource("/api/v1/sse");
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:3001";
+      const es = new EventSource(`${backendUrl}/api/v1/sse`);
       esRef.current = es;
 
       es.addEventListener("open", () => {
