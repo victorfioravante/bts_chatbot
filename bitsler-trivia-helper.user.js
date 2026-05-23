@@ -710,31 +710,31 @@
   let _lastPushedToken = null;
 
   function pushTokenToBot() {
-    // Tenta múltiplos caminhos no store — estrutura pode variar por versão
-    const store = window.__vue_store__ || window.__store__;
-    const state = store?.state ?? {};
-    const token =
-      state?.chat?.user?.socketToken ??
-      state?.user?.socketToken ??
-      state?.auth?.socketToken ??
-      state?.chat?.socketToken ??
-      null;
+    try {
+      // Token em localStorage.settings.user.token (confirmado via DevTools)
+      const raw = localStorage.getItem('settings');
+      if (!raw) return;
+      const settings = JSON.parse(decodeURIComponent(raw));
+      const token = settings?.user?.token;
+      if (!token || token === _lastPushedToken) return;
 
-    if (!token || token === _lastPushedToken) return;
+      // Fingerprint do cookie fpstore
+      const fp = document.cookie.match(/fpstore=([a-f0-9]+)/i)?.[1] ?? '';
 
-    GM_xmlhttpRequest({
-      method: 'POST',
-      url: `http://localhost:${BOT_PORT}/api/v1/socket-token`,
-      headers: { 'Content-Type': 'application/json' },
-      data: JSON.stringify({ token }),
-      onload(r) {
-        if (r.status === 200) {
-          _lastPushedToken = token;
-          console.log('[BTH] Token enviado ao bot local ✓');
-        }
-      },
-      onerror() {}, // bot offline — silencioso
-    });
+      GM_xmlhttpRequest({
+        method: 'POST',
+        url: `http://localhost:${BOT_PORT}/api/v1/socket-token`,
+        headers: { 'Content-Type': 'application/json' },
+        data: JSON.stringify({ token, fingerprint: fp }),
+        onload(r) {
+          if (r.status === 200) {
+            _lastPushedToken = token;
+            console.log('[BTH] Token enviado ao bot local ✓', token.slice(0, 12) + '…');
+          }
+        },
+        onerror() {}, // bot offline — silencioso
+      });
+    } catch (e) {}
   }
 
   // ─── Init ─────────────────────────────────────────────────────────────────
