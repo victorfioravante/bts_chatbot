@@ -72,49 +72,83 @@
   }
 
   // ─── Chat analysis ────────────────────────────────────────────────────────
-  const TRIVIA_START_RE = /guess\s+the\s+(casino|bitsler|blockchain|crypto|coin|top\s*100)/i;
-  const HINT_LINE_RE    = /^[A-Z_](\s+[A-Z_]){1,}$/i;
-  const GAME_OVER_RE    = /game\s*over/i;
-  const ANSWER_RE       = /answer[*:\s]+([a-zA-Z]+)/i;
+  const HINT_LINE_RE  = /^[A-Z_](\s+[A-Z_]){1,}$/i;
+  const GAME_OVER_RE  = /game\s*over/i;
+  const ANSWER_RE     = /answer[*:\s]+([a-zA-Z]+)/i;
 
+  // Detect theme from any line that contains "Guess the …"
+  // Priority: "top 100" beats "crypto" (e.g. "Guess the Crypto coin name (top 100)")
+  function detectThemeFromLine(line) {
+    if (!/guess\s+the/i.test(line)) return null;
+    const t = line.toLowerCase();
+    if (/top\s*100/.test(t))   return 'top100_coins';
+    if (/casino/.test(t))      return 'casino_terms';
+    if (/bitsler/.test(t))     return 'bitsler_terms';
+    if (/blockchain/.test(t))  return 'blockchain_terms';
+    if (/\bcoin\b/.test(t))    return 'top100_coins';
+    if (/crypto/.test(t))      return 'blockchain_terms';
+    return null;
+  }
+
+  // Theme and hint may arrive in the SAME multi-line message:
+  //   "Guess the Crypto coin name (top 100) 👇\nR _ _ _ _ _\n🏅 …"
+  // Parse every line so both are captured in one pass.
   function analyzeMessage(text) {
     if (!text) return;
-    const clean = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    // Preserve line breaks; strip HTML tags
+    const clean = text
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/[^\S\n]+/g, ' ')
+      .trim();
 
-    const tm = clean.match(TRIVIA_START_RE);
-    if (tm) {
-      const key = tm[1].toLowerCase().replace(/\s/g, '');
-      S.detectedTheme = THEME_MAP[key] || 'blockchain_terms';
-      S.hint = null; S.matches = []; S.qIdx = 0;
-      updateNavIcon(); return;
-    }
+    const lines = clean.split(/\n+/).map(l => l.trim()).filter(Boolean);
 
-    if (GAME_OVER_RE.test(clean)) {
-      const am = clean.match(ANSWER_RE);
-      if (am) {
-        const word = am[1];
-        const th = activeTheme();
-        if (!S.lists[th].some(w => w.toLowerCase() === word.toLowerCase())) {
-          S.lists[th].push(word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
-          saveList(th);
-          notify(`"${word}" adicionada à lista`, 'ok');
+    let themeChanged = false;
+    let hintLine     = null;
+
+    for (const line of lines) {
+      // Game over (bail immediately — no hint expected after)
+      if (GAME_OVER_RE.test(line)) {
+        const am = clean.match(ANSWER_RE);
+        if (am) {
+          const word = am[1];
+          const th   = activeTheme();
+          if (!S.lists[th].some(w => w.toLowerCase() === word.toLowerCase())) {
+            S.lists[th].push(word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
+            saveList(th);
+            notify(`"${word}" adicionada à lista`, 'ok');
+          }
         }
+        S.hint = null; S.matches = []; S.qIdx = 0;
+        setTimeout(() => { closeSheet(); updateNavIcon(); }, 1500);
+        return;
       }
-      S.hint = null; S.matches = []; S.qIdx = 0;
-      // Close sheet after short delay so user can see it's over
-      setTimeout(() => { closeSheet(); updateNavIcon(); }, 1500);
-      return;
+
+      // Theme line (e.g. "Guess the Crypto coin name (top 100) 👇")
+      const detectedTh = detectThemeFromLine(line);
+      if (detectedTh) {
+        S.detectedTheme = detectedTh;
+        S.hint = null; S.matches = []; S.qIdx = 0;
+        themeChanged = true;
+        continue; // keep scanning — hint may be on the next line
+      }
+
+      // Hint line (e.g. "R _ _ _ _ _")
+      if (!hintLine && HINT_LINE_RE.test(line)) {
+        hintLine = line;
+      }
     }
 
-    if (HINT_LINE_RE.test(clean)) {
-      const th = activeTheme();
-      const newMatches = matchHint(clean, th);
-      if (clean !== S.hint) {
-        S.hint = clean; S.matches = newMatches; S.qIdx = 0;
-        updateNavIcon();
-        // Auto-open sheet on hint (most actionable moment)
-        openSheet('game');
-      }
+    // Process hint — use theme detected in THIS message (already set above)
+    if (hintLine && hintLine !== S.hint) {
+      S.hint    = hintLine;
+      S.matches = matchHint(hintLine, activeTheme());
+      S.qIdx    = 0;
+      updateNavIcon();
+      openSheet('game');
+    } else if (themeChanged) {
+      updateNavIcon();
     }
   }
 
