@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bitsler Trivia Helper
 // @namespace    bitsler-trivia-helper
-// @version      1.0.0
+// @version      2.0.0
 // @description  Detecta tema e dicas do trivia Bitsler, sugere respostas e envia com um clique
 // @author       victorfioravante
 // @match        https://www.bitsler.com/*
@@ -16,14 +16,14 @@
 (function () {
   'use strict';
 
-  const P = 'bth'; // DOM prefix (keeps IDs unique)
+  const P = 'bth';
 
-  // ─── Default word lists (synced from data/triviaWords.json) ────────────────
+  // ─── Default word lists ────────────────────────────────────────────────────
   const DEFAULTS = {
-    casino_terms: ["Ace","Ante","Baccarat","Banker","Bankroll","Bet","Blackjack","Blind","Bluff","Bonus","Bust","Call","Card","Casino","Check","Chip","Croupier","Cut","Deal","Dealer","Deck","Double","Down","Draw","Edge","Flush","Fold","Full","Gamble","Hand","Hit","Hold","Hole","House","Insurance","Jackpot","Joker","Keno","Limit","Loose","Martingale","Match","Maximum","Minimum","Natural","Odds","Pair","Pass","Payout","Player","Poker","Pot","Push","Raise","Rake","Random","River","Roll","Roulette","Royal","Shoe","Shuffle","Slot","Spin","Split","Stake","Stand","Straight","Street","Table","Tie","Token","Trip","Turn","Variance","Wager","Wild","Win","Zero"],
-    bitsler_terms: ["Rain","Drizzle","Chat","Wager","Bet","Spin","Roll","Dice","Crash","Limbo","Plinko","Wheel","Hilo","Mines","Keno","Baccarat","Blackjack","Roulette","Slots","Poker","Jackpot","Bonus","Promo","VIP","Rank","Level","Points","Wagering","Cashback","Rakeback","Deposit","Withdraw","Tip","Faucet","Challenge","Leaderboard","Tournament","Prize","Affiliate","Referral","Code","Balance","Currency","Multiplier","Odds","House","Edge","Provably","Fair","Seed","Hash","Nonce","Verify","Result","Win","Lose","Profit","Autobet","Strategy","Martingale","Fibonacci","Paroli","Dalembert","Support","Moderator","Admin","Ban","Mute","Warning"],
+    casino_terms:     ["Ace","Ante","Baccarat","Banker","Bankroll","Bet","Blackjack","Blind","Bluff","Bonus","Bust","Call","Card","Casino","Check","Chip","Croupier","Cut","Deal","Dealer","Deck","Double","Down","Draw","Edge","Flush","Fold","Full","Gamble","Hand","Hit","Hold","Hole","House","Insurance","Jackpot","Joker","Keno","Limit","Loose","Martingale","Match","Maximum","Minimum","Natural","Odds","Pair","Pass","Payout","Player","Poker","Pot","Push","Raise","Rake","Random","River","Roll","Roulette","Royal","Shoe","Shuffle","Slot","Spin","Split","Stake","Stand","Straight","Street","Table","Tie","Token","Trip","Turn","Variance","Wager","Wild","Win","Zero"],
+    bitsler_terms:    ["Rain","Drizzle","Chat","Wager","Bet","Spin","Roll","Dice","Crash","Limbo","Plinko","Wheel","Hilo","Mines","Keno","Baccarat","Blackjack","Roulette","Slots","Poker","Jackpot","Bonus","Promo","VIP","Rank","Level","Points","Wagering","Cashback","Rakeback","Deposit","Withdraw","Tip","Faucet","Challenge","Leaderboard","Tournament","Prize","Affiliate","Referral","Code","Balance","Currency","Multiplier","Odds","House","Edge","Provably","Fair","Seed","Hash","Nonce","Verify","Result","Win","Lose","Profit","Autobet","Strategy","Martingale","Fibonacci","Paroli","Dalembert","Support","Moderator","Admin","Ban","Mute","Warning"],
     blockchain_terms: ["ABI","API","APR","APY","Asic","Asset","Atomic","Altcoin","Analytics","Algorithm","Bot","BTC","Burn","Block","Bridge","Bitcoin","Blockchain","CEX","Coin","Chain","Custody","Currency","Consensus","Cryptography","Cryptocurrency","DAO","Data","DApp","DeFi","Dealer","Demand","Digital","Deposit","Database","Distributed","Decentralization","Escrow","Ethereum","Exchange","Encryption","Fee","Fiat","Fork","Faucet","Finance","Finality","Gas","Hash","Hodl","Hold","Halving","Hashrate","Hyperledger","ICO","Immutable","Inflation","Investing","Insurance","Interchain","Interoperability","Key","KYC","Ledger","Liquidity","Mint","Miner","Mining","Market","Mainnet","Multisig","Metaverse","NFT","Node","Nonce","Network","Oracle","Plasma","Protocol","Reward","Satoshi","Staking","Storage","Support","Sharding","Security","Solidity","Strategy","Sidechain","Stablecoin","Scalability","Supply","Token","Testnet","Trading","Transfer","Timestamp","Transaction","Tokenization","Validator","Validation","Volatility","Whale","Wallet","Withdraw","Whitepaper"],
-    top100_coins: ["Bitcoin","Ethereum","Tether","BNB","Solana","USDC","XRP","Dogecoin","Cardano","Avalanche","Shiba","Polkadot","Chainlink","Tron","Polygon","Litecoin","Stellar","Monero","Cosmos","Algorand","VeChain","Filecoin","Hedera","Aptos","Arbitrum","Optimism","Near","Fantom","Elrond","Theta","Tezos","EOS","Aave","Uniswap","Maker","Compound","Curve","Synthetix","Yearn","Injective","Render","Immutable","Mantle","Sei","Sui","Celestia","Pyth","Jupiter","Jito","Kaspa","Ton","Stacks","Pepe","Floki","Bonk","Bittensor","Worldcoin","Arweave","Fetch","Sandbox","Decentraland","Axie","Gala","Illuvium","Stepn","Enjin","Flow","Chiliz","Wax","Blur","Ripple","Dash","Zcash","Nano","Kusama","Acala","Moonbeam","Parallel","Quant","Band","Api3","Uma","Ondo","Pendle","Ethena","Renzo","Kelp","Notcoin","Dogs","Hamster","Catizen","Pixelverse"],
+    top100_coins:     ["Bitcoin","Ethereum","Tether","BNB","Solana","USDC","XRP","Dogecoin","Cardano","Avalanche","Shiba","Polkadot","Chainlink","Tron","Polygon","Litecoin","Stellar","Monero","Cosmos","Algorand","VeChain","Filecoin","Hedera","Aptos","Arbitrum","Optimism","Near","Fantom","Elrond","Theta","Tezos","EOS","Aave","Uniswap","Maker","Compound","Curve","Synthetix","Yearn","Injective","Render","Immutable","Mantle","Sei","Sui","Celestia","Pyth","Jupiter","Jito","Kaspa","Ton","Stacks","Pepe","Floki","Bonk","Bittensor","Worldcoin","Arweave","Fetch","Sandbox","Decentraland","Axie","Gala","Illuvium","Stepn","Enjin","Flow","Chiliz","Wax","Blur","Ripple","Dash","Zcash","Nano","Kusama","Acala","Moonbeam","Parallel","Quant","Band","Api3","Uma","Ondo","Pendle","Ethena","Renzo","Kelp","Notcoin","Dogs","Hamster","Catizen","Pixelverse"],
   };
 
   const THEME_LABELS = {
@@ -33,61 +33,45 @@
     top100_coins:    '💰 Top 100',
   };
 
-  // Theme keyword → internal key
   const THEME_MAP = {
-    casino: 'casino_terms',
-    bitsler: 'bitsler_terms',
-    blockchain: 'blockchain_terms',
-    crypto: 'blockchain_terms',
-    coin: 'top100_coins',
-    top100: 'top100_coins',
+    casino:'casino_terms', bitsler:'bitsler_terms',
+    blockchain:'blockchain_terms', crypto:'blockchain_terms',
+    coin:'top100_coins', top100:'top100_coins',
   };
 
   const ALL_THEMES = Object.keys(DEFAULTS);
 
-  // ─── State ────────────────────────────────────────────────────────────────────
+  // ─── State ────────────────────────────────────────────────────────────────
   const S = {
-    open: false,
-    tab: 'game',
-    detectedTheme: null,   // from VVolfy message
-    selectedTheme: null,   // manual override
-    hint: null,            // raw hint string e.g. "B _ T _ _ _ N"
-    matches: [],           // filtered words
-    qIdx: 0,               // next word to send
-    lists: {},             // loaded word lists
-    top100At: null,        // timestamp of last CoinGecko fetch
+    sheetOpen: false,
+    sheetTab: 'game',       // 'game' | theme key
+    detectedTheme: null,
+    selectedTheme: null,
+    hint: null,
+    matches: [],
+    qIdx: 0,
+    lists: {},
+    top100At: null,
   };
 
-  // ─── Storage ──────────────────────────────────────────────────────────────────
+  // ─── Storage ──────────────────────────────────────────────────────────────
   function loadStorage() {
-    for (const t of ALL_THEMES) {
-      S.lists[t] = GM_getValue('list_' + t, [...DEFAULTS[t]]);
-    }
-    S.top100At   = GM_getValue('top100_at', null);
+    for (const t of ALL_THEMES) S.lists[t] = GM_getValue('list_' + t, [...DEFAULTS[t]]);
+    S.top100At      = GM_getValue('top100_at', null);
     S.selectedTheme = GM_getValue('sel_theme', null);
   }
+  function saveList(t) { GM_setValue('list_' + t, S.lists[t]); }
+  function activeTheme() { return S.selectedTheme || S.detectedTheme || 'blockchain_terms'; }
 
-  function saveList(theme) { GM_setValue('list_' + theme, S.lists[theme]); }
-
-  // ─── Active theme resolution ──────────────────────────────────────────────────
-  function activeTheme() {
-    return S.selectedTheme || S.detectedTheme || 'blockchain_terms';
-  }
-
-  // ─── Word matching ────────────────────────────────────────────────────────────
-  // hint: "B _ T _ _ _ N" → match words of same length with known letters in position
+  // ─── Word matching ────────────────────────────────────────────────────────
   function matchHint(hintStr, theme) {
     const tokens = hintStr.trim().split(/\s+/);
-    const len = tokens.length;
-    // Build regex: each token is a known letter or wildcard
     const pattern = tokens.map(t => /^[a-zA-Z]$/.test(t) ? t.toLowerCase() : '[a-z]').join('');
     const re = new RegExp('^' + pattern + '$', 'i');
-    // Get word list — filter multi-word entries (trivia answers are single words)
-    const words = (S.lists[theme] || []).filter(w => !w.includes(' ') && w.length === len);
-    return words.filter(w => re.test(w));
+    return (S.lists[theme] || []).filter(w => !w.includes(' ') && w.length === tokens.length && re.test(w));
   }
 
-  // ─── Chat message analysis ────────────────────────────────────────────────────
+  // ─── Chat analysis ────────────────────────────────────────────────────────
   const TRIVIA_START_RE = /guess\s+the\s+(casino|bitsler|blockchain|crypto|coin|top\s*100)/i;
   const HINT_LINE_RE    = /^[A-Z_](\s+[A-Z_]){1,}$/i;
   const GAME_OVER_RE    = /game\s*over/i;
@@ -97,84 +81,70 @@
     if (!text) return;
     const clean = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
-    // Theme announcement
     const tm = clean.match(TRIVIA_START_RE);
     if (tm) {
       const key = tm[1].toLowerCase().replace(/\s/g, '');
       S.detectedTheme = THEME_MAP[key] || 'blockchain_terms';
       S.hint = null; S.matches = []; S.qIdx = 0;
-      refresh(); return;
+      updateNavIcon(); return;
     }
 
-    // Game over — auto-add answer to active list
     if (GAME_OVER_RE.test(clean)) {
       const am = clean.match(ANSWER_RE);
       if (am) {
         const word = am[1];
         const th = activeTheme();
-        const exists = S.lists[th].some(w => w.toLowerCase() === word.toLowerCase());
-        if (!exists) {
-          const cased = word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-          S.lists[th].push(cased);
+        if (!S.lists[th].some(w => w.toLowerCase() === word.toLowerCase())) {
+          S.lists[th].push(word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
           saveList(th);
-          notify(`"${cased}" adicionada à lista ${THEME_LABELS[th]}`, 'ok');
+          notify(`"${word}" adicionada à lista`, 'ok');
         }
       }
       S.hint = null; S.matches = []; S.qIdx = 0;
-      refresh(); return;
+      // Close sheet after short delay so user can see it's over
+      setTimeout(() => { closeSheet(); updateNavIcon(); }, 1500);
+      return;
     }
 
-    // Hint pattern
     if (HINT_LINE_RE.test(clean)) {
       const th = activeTheme();
       const newMatches = matchHint(clean, th);
-      // Only update if we get matches OR if hint changed
       if (clean !== S.hint) {
         S.hint = clean; S.matches = newMatches; S.qIdx = 0;
-        refresh();
+        updateNavIcon();
+        // Auto-open sheet on hint (most actionable moment)
+        openSheet('game');
       }
     }
   }
 
-  // ─── Chat input / send ────────────────────────────────────────────────────────
-  function findChatInput() {
-    const selectors = [
-      'input[placeholder*="essage" i]',
-      'input[placeholder*="Type" i]',
-      'input[placeholder*="chat" i]',
-      '.chat-input input',
-      '[class*="chatInput" i] input',
-      '[class*="chat" i] input[type="text"]',
-      'footer input',
-      'input[type="text"]',
+  // ─── Send ─────────────────────────────────────────────────────────────────
+  function findInput() {
+    const sels = [
+      'input[placeholder*="essage" i]', 'input[placeholder*="Type" i]',
+      'input[placeholder*="chat" i]', '.chat-input input',
+      '[class*="chatInput" i] input', '[class*="chat" i] input[type="text"]',
+      'footer input', 'input[type="text"]',
     ];
-    for (const sel of selectors) {
-      const el = document.querySelector(sel);
+    for (const s of sels) {
+      const el = document.querySelector(s);
       if (el && el.offsetParent !== null) return el;
     }
     return null;
   }
 
   function sendMsg(word) {
-    const el = findChatInput();
+    const el = findInput();
     if (!el) { notify('Input do chat não encontrado', 'err'); return false; }
-
-    // React-compatible value setter
-    const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const proto  = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
     const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
-    if (setter) setter.call(el, word);
-    else el.value = word;
-
+    if (setter) setter.call(el, word); else el.value = word;
     el.dispatchEvent(new Event('input',  { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
     el.focus();
-
-    // Send after a short tick so React can process the value change
     setTimeout(() => {
-      for (const type of ['keydown', 'keypress', 'keyup']) {
-        el.dispatchEvent(new KeyboardEvent(type, {
-          key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true,
-        }));
+      for (const type of ['keydown','keypress','keyup']) {
+        el.dispatchEvent(new KeyboardEvent(type, { key:'Enter', code:'Enter', keyCode:13, which:13, bubbles:true }));
       }
     }, 80);
     return true;
@@ -183,10 +153,10 @@
   function sendQueued() {
     if (S.qIdx >= S.matches.length) return;
     const word = S.matches[S.qIdx];
-    if (sendMsg(word)) { S.qIdx++; refresh(); }
+    if (sendMsg(word)) { S.qIdx++; renderSheetBody(); updateNavIcon(); }
   }
 
-  // ─── Top 100 fetch (lazy, on demand) ─────────────────────────────────────────
+  // ─── Top 100 fetch ────────────────────────────────────────────────────────
   function fetchTop100() {
     notify('Buscando Top 100 no CoinGecko...', 'inf');
     GM_xmlhttpRequest({
@@ -196,105 +166,152 @@
       onload(resp) {
         try {
           const coins = JSON.parse(resp.responseText);
-          const seen = new Set();
-          const words = [];
+          const seen = new Set(); const words = [];
           for (const c of coins) {
-            // Add coin name words (split "Bitcoin Cash" → "Bitcoin", "Cash")
-            if (c.name) {
-              // Also keep the full single-word name
-              const parts = c.name.split(/[\s\-]+/);
-              for (const p of parts) {
-                const w = p.trim();
-                if (w.length >= 2 && !seen.has(w.toLowerCase())) {
-                  seen.add(w.toLowerCase());
-                  words.push(w.charAt(0).toUpperCase() + w.slice(1));
-                }
-              }
-            }
-            // Add symbol
-            if (c.symbol && c.symbol.length >= 2) {
-              const sym = c.symbol.toUpperCase();
-              if (!seen.has(sym.toLowerCase())) {
-                seen.add(sym.toLowerCase());
-                words.push(sym);
-              }
-            }
+            if (c.name) c.name.split(/[\s\-]+/).forEach(p => {
+              const w = p.trim(); if (w.length >= 2 && !seen.has(w.toLowerCase())) { seen.add(w.toLowerCase()); words.push(w.charAt(0).toUpperCase() + w.slice(1)); }
+            });
+            if (c.symbol?.length >= 2 && !seen.has(c.symbol.toLowerCase())) { seen.add(c.symbol.toLowerCase()); words.push(c.symbol.toUpperCase()); }
           }
-          S.lists.top100_coins = words;
-          S.top100At = Date.now();
-          saveList('top100_coins');
-          GM_setValue('top100_at', S.top100At);
+          S.lists.top100_coins = words; S.top100At = Date.now();
+          saveList('top100_coins'); GM_setValue('top100_at', S.top100At);
           notify(`Top 100 atualizado: ${words.length} termos`, 'ok');
-          refresh();
-        } catch (e) {
-          notify('Erro ao processar Top 100', 'err');
-        }
+          renderSheetBody();
+        } catch { notify('Erro ao processar Top 100', 'err'); }
       },
-      onerror() { notify('Erro de rede ao buscar Top 100', 'err'); },
+      onerror() { notify('Erro de rede', 'err'); },
     });
   }
 
-  // ─── Chat observer ────────────────────────────────────────────────────────────
+  // ─── Observer ─────────────────────────────────────────────────────────────
   let _obs = null;
-
   function startObserver() {
     if (_obs) return;
-    const CONTAINER_SELS = [
-      '[class*="chatMessages" i]', '[class*="chat-messages" i]',
-      '[class*="messages-container" i]', '[class*="messageList" i]',
-      '[class*="chat-body" i]', '[class*="ChatBody" i]',
-      '[class*="Chat_body" i]', '[class*="chat_messages" i]',
-    ];
-
+    const SELS = ['[class*="chatMessages" i]','[class*="chat-messages" i]','[class*="messages-container" i]','[class*="messageList" i]','[class*="chat-body" i]','[class*="ChatBody" i]','[class*="Chat_body" i]'];
     let container = null;
-    for (const sel of CONTAINER_SELS) {
-      container = document.querySelector(sel);
-      if (container) break;
-    }
-
-    if (!container) {
-      // Retry until chat loads (SPA navigation)
-      setTimeout(startObserver, 2500);
-      return;
-    }
-
+    for (const s of SELS) { container = document.querySelector(s); if (container) break; }
+    if (!container) { setTimeout(startObserver, 2500); return; }
     _obs = new MutationObserver(muts => {
-      for (const m of muts) {
-        for (const node of m.addedNodes) {
-          if (node.nodeType !== 1) continue;
-          // Try to extract message text from the node
-          const msgEl = node.querySelector('[class*="message-text" i],[class*="msg-text" i],[class*="text" i],p,span') || node;
-          analyzeMessage(msgEl.textContent || '');
-        }
+      for (const m of muts) for (const node of m.addedNodes) {
+        if (node.nodeType !== 1) continue;
+        const msgEl = node.querySelector('[class*="message-text" i],[class*="msg-text" i],[class*="text" i],p,span') || node;
+        analyzeMessage(msgEl.textContent || '');
       }
     });
-
     _obs.observe(container, { childList: true, subtree: true });
   }
 
-  // ─── Notification ─────────────────────────────────────────────────────────────
+  // ─── Notification ─────────────────────────────────────────────────────────
   function notify(msg, type = 'inf') {
     const el = document.getElementById(`${P}-notif`);
     if (!el) return;
-    el.textContent = msg;
-    el.dataset.t = type;
-    clearTimeout(el._timer);
-    el._timer = setTimeout(() => { el.dataset.t = ''; }, 3000);
+    el.textContent = msg; el.dataset.t = type;
+    clearTimeout(el._t); el._t = setTimeout(() => { el.dataset.t = ''; }, 3000);
   }
 
-  // ─── DOM helpers ──────────────────────────────────────────────────────────────
+  // ─── Nav icon ─────────────────────────────────────────────────────────────
+  let _navInjected = false;
+
+  function updateNavIcon() {
+    const icon = document.getElementById(`${P}-nav-icon`);
+    const badge = document.getElementById(`${P}-nav-badge`);
+    if (!icon || !badge) return;
+    const rem = Math.max(0, S.matches.length - S.qIdx);
+    badge.textContent = rem > 0 ? rem : '';
+    badge.style.display = rem > 0 ? 'flex' : 'none';
+    // Icon color state
+    if (S.hint && rem > 0) {
+      icon.dataset.state = 'active'; // amber pulse — game + matches
+    } else if (S.detectedTheme) {
+      icon.dataset.state = 'ready';  // blue — theme detected
+    } else {
+      icon.dataset.state = '';       // gray — idle
+    }
+  }
+
+  function injectNavIcon() {
+    if (_navInjected) return;
+    const NAV_SELS = [
+      'nav', '[class*="bottom-nav" i]', '[class*="bottomNav" i]',
+      '[class*="bottom-bar" i]', '[class*="bottomBar" i]',
+      '[class*="tab-bar" i]', '[class*="tabBar" i]',
+      'footer', '[class*="footer" i]',
+    ];
+    let nav = null;
+    for (const s of NAV_SELS) { nav = document.querySelector(s); if (nav?.children?.length >= 2) break; }
+    if (!nav) { setTimeout(injectNavIcon, 2000); return; }
+
+    _navInjected = true;
+
+    // Build icon matching Bitsler nav style
+    const btn = document.createElement('button');
+    btn.id = `${P}-nav-icon`;
+    btn.className = nav.firstElementChild?.className || '';
+    btn.setAttribute('aria-label', 'Trivia Helper');
+
+    // SVG game controller icon (matches typical Bitsler icon style — 24×24 outline)
+    btn.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="6" width="20" height="12" rx="6"/>
+        <line x1="7" y1="12" x2="7" y2="12"/><line x1="9" y1="10" x2="9" y2="14"/><line x1="7" y1="10" x2="11" y2="10" style="display:none"/>
+        <circle cx="15" cy="11" r="1" fill="currentColor" stroke="none"/>
+        <circle cx="17" cy="13" r="1" fill="currentColor" stroke="none"/>
+        <line x1="6" y1="12" x2="10" y2="12"/>
+        <line x1="8" y1="10" x2="8" y2="14"/>
+      </svg>
+      <span id="${P}-nav-badge"></span>
+    `;
+
+    btn.addEventListener('click', () => {
+      if (S.sheetOpen) closeSheet();
+      else openSheet(S.hint ? 'game' : 'settings');
+    });
+
+    nav.appendChild(btn);
+    updateNavIcon();
+  }
+
+  // ─── Bottom sheet ─────────────────────────────────────────────────────────
+  function openSheet(view) {
+    S.sheetOpen = true;
+    S.sheetTab  = view === 'settings' ? 'casino_terms' : 'game';
+    const sheet = document.getElementById(`${P}-sheet`);
+    if (!sheet) return;
+    if (view === 'game') S.sheetTab = 'game';
+    renderSheetBody();
+    sheet.classList.add('open');
+  }
+
+  function closeSheet() {
+    S.sheetOpen = false;
+    const sheet = document.getElementById(`${P}-sheet`);
+    if (sheet) sheet.classList.remove('open');
+  }
+
+  // ─── Sheet body render ────────────────────────────────────────────────────
+  function renderSheetBody() {
+    const body = document.getElementById(`${P}-sheet-body`);
+    if (!body) return;
+    // Update tab highlights
+    document.querySelectorAll(`.${P}-stab`).forEach(t => {
+      t.classList.toggle('on', t.dataset.tab === S.sheetTab);
+    });
+    body.innerHTML = '';
+    const content = S.sheetTab === 'game' ? renderGame()
+      : S.sheetTab === 'top100_coins'    ? renderTop100()
+      : renderEditor(S.sheetTab);
+    if (content) body.appendChild(content);
+  }
+
+  // ─── DOM helpers ─────────────────────────────────────────────────────────
   function el(tag, props = {}, ...children) {
     const node = document.createElement(tag);
     for (const [k, v] of Object.entries(props)) {
       if (k === 'cls') node.className = v;
-      else if (k === 'html') node.innerHTML = v;
       else if (k.startsWith('on')) node.addEventListener(k.slice(2), v);
       else node.setAttribute(k, v);
     }
-    for (const c of children) {
-      if (c == null) continue;
-      node.append(typeof c === 'string' ? document.createTextNode(c) : c);
-    }
+    for (const c of children) { if (c != null) node.append(typeof c === 'string' ? document.createTextNode(c) : c); }
     return node;
   }
 
@@ -302,150 +319,79 @@
     if (!ts) return 'nunca';
     const s = Math.floor((Date.now() - ts) / 1000);
     if (s < 60) return `${s}s atrás`;
-    if (s < 3600) return `${Math.floor(s / 60)}min atrás`;
-    if (s < 86400) return `${Math.floor(s / 3600)}h atrás`;
-    return `${Math.floor(s / 86400)}d atrás`;
+    if (s < 3600) return `${Math.floor(s/60)}min atrás`;
+    return `${Math.floor(s/3600)}h atrás`;
   }
 
-  // ─── Render ───────────────────────────────────────────────────────────────────
-  function refresh() {
-    // Badge
-    const badge = document.getElementById(`${P}-badge`);
-    const rem = Math.max(0, S.matches.length - S.qIdx);
-    if (badge) { badge.textContent = rem; badge.style.display = rem > 0 ? 'flex' : 'none'; }
-
-    // Header theme pill
-    const pill = document.getElementById(`${P}-hpill`);
-    if (pill) {
-      const th = S.detectedTheme || S.selectedTheme;
-      pill.textContent = th ? THEME_LABELS[th] : '—';
-    }
-
-    // Re-position panel if open (in case content height changed)
-    const fab   = document.getElementById(`${P}-fab`);
-    const panel = document.getElementById(`${P}-panel`);
-    if (fab && panel && S.open) positionPanel(fab, panel);
-
-    renderBody();
-  }
-
-  function renderBody() {
-    const body = document.getElementById(`${P}-body`);
-    if (!body) return;
-    body.innerHTML = '';
-    const content = S.tab === 'game' ? renderGame()
-      : S.tab === 'top100_coins' ? renderTop100()
-      : renderEditor(S.tab);
-    if (content) body.appendChild(content);
-  }
-
+  // ─── Game view ────────────────────────────────────────────────────────────
   function renderGame() {
     const frag = document.createDocumentFragment();
     const th = activeTheme();
 
-    // ── Theme selector chips
-    frag.appendChild(el('div', { cls: `${P}-label` }, 'Tema'));
-    const thRow = el('div', { cls: `${P}-row` });
+    // Hint display (compact)
+    if (S.hint) {
+      frag.appendChild(el('div', { cls: `${P}-hint-row` },
+        el('span', { cls: `${P}-hint-text` }, S.hint),
+        el('span', { cls: `${P}-hint-meta` }, `${S.hint.trim().split(/\s+/).length} letras · ${S.matches.length} possibilidade(s)`),
+      ));
+    }
+
+    // Theme chips (inline, small)
+    const thRow = el('div', { cls: `${P}-theme-row` });
     for (const t of ALL_THEMES) {
       thRow.appendChild(el('button', {
-        cls: `${P}-chip ${S.selectedTheme === t ? 'on' : ''}`,
+        cls: `${P}-chip ${S.selectedTheme === t || (!S.selectedTheme && S.detectedTheme === t) ? 'on' : ''}`,
         onclick() {
-          S.selectedTheme = t;
-          GM_setValue('sel_theme', t);
+          S.selectedTheme = t; GM_setValue('sel_theme', t);
           if (S.hint) { S.matches = matchHint(S.hint, t); S.qIdx = 0; }
-          refresh();
+          renderSheetBody(); updateNavIcon();
         },
       }, THEME_LABELS[t]));
     }
     frag.appendChild(thRow);
 
-    // Detected theme info
-    if (S.detectedTheme) {
-      frag.appendChild(el('div', { cls: `${P}-info` },
-        `Auto-detectado: ${THEME_LABELS[S.detectedTheme]}`
-      ));
-    }
-
-    // ── Manual hint input
-    frag.appendChild(el('div', { cls: `${P}-label`, style: 'margin-top:10px' }, 'Dica (manual ou auto-detectada)'));
-    const hInput = el('input', {
-      cls: `${P}-hinput`,
-      type: 'text',
-      placeholder: 'Ex: B _ T _ _ _ N',
-      value: S.hint || '',
-    });
+    // Manual hint input
+    const hInput = el('input', { cls: `${P}-hinput`, type:'text', placeholder:'Dica manual: ex  B _ T _ _ _ N', value: S.hint || '' });
     hInput.addEventListener('input', () => {
       const v = hInput.value.toUpperCase().trim();
       if (/^[A-Z_](\s+[A-Z_]){1,}$/.test(v)) {
         S.hint = v; S.matches = matchHint(v, activeTheme()); S.qIdx = 0;
-        refresh();
+        renderSheetBody(); updateNavIcon();
       }
     });
     frag.appendChild(hInput);
 
-    // ── Hint display
-    if (S.hint) {
-      frag.appendChild(el('div', { cls: `${P}-hint-box` },
-        el('div', { cls: `${P}-hint-label` }, 'Dica atual'),
-        el('div', { cls: `${P}-hint-text` }, S.hint),
-        el('div', { cls: `${P}-info`, style: 'margin:0' },
-          `${S.hint.trim().split(/\s+/).length} letras · ${S.matches.length} possibilidade(s)`
-        ),
-      ));
-    }
-
-    // ── Send button (current word in queue)
+    // ── Big send button (primary action)
     const curWord = S.matches[S.qIdx];
     if (curWord) {
       frag.appendChild(el('button', { cls: `${P}-send-btn`, onclick: sendQueued },
-        `📤 Enviar: ${curWord.toUpperCase()}`
+        `📤 ${curWord.toUpperCase()}`
       ));
       if (S.matches.length > 1) {
         const next = S.matches[S.qIdx + 1];
         frag.appendChild(el('div', { cls: `${P}-queue-info` },
-          `${S.qIdx + 1} / ${S.matches.length}${next ? ` → próxima: ${next.toUpperCase()}` : ' → última'}`
+          `${S.qIdx + 1} / ${S.matches.length}${next ? ` · próxima: ${next.toUpperCase()}` : ' · última'}`
         ));
       }
-    } else if (S.hint && S.matches.length === 0) {
-      frag.appendChild(el('div', { cls: `${P}-empty` },
-        'Nenhuma palavra encontrada para esta dica.\nAdicione palavras na lista do tema.'
-      ));
-    } else if (!S.hint) {
-      frag.appendChild(el('div', { cls: `${P}-empty` },
-        'Aguardando início do trivia...\nTema e dica são detectados automaticamente.'
-      ));
+    } else if (S.hint) {
+      frag.appendChild(el('div', { cls: `${P}-empty` }, 'Nenhuma palavra encontrada. Verifique a lista do tema.'));
+    } else {
+      frag.appendChild(el('div', { cls: `${P}-empty` }, 'Aguardando dica do trivia...\nA dica detectada abrirá este painel automaticamente.'));
     }
 
-    // ── All match chips
+    // Word chips (secondary)
     if (S.matches.length > 0) {
-      frag.appendChild(el('div', { cls: `${P}-label`, style: 'margin-top:10px' }, 'Todas as possibilidades'));
       const grid = el('div', { cls: `${P}-grid` });
       S.matches.forEach((w, i) => {
-        const isSent = i < S.qIdx;
-        const isCur  = i === S.qIdx;
+        const isSent = i < S.qIdx, isCur = i === S.qIdx;
         grid.appendChild(el('button', {
           cls: `${P}-wchip ${isCur ? 'cur' : ''} ${isSent ? 'sent' : ''}`,
-          onclick() {
-            if (isSent) return; // already sent
-            if (sendMsg(w)) { S.qIdx = i + 1; refresh(); }
-          },
+          onclick() { if (!isSent && sendMsg(w)) { S.qIdx = i + 1; renderSheetBody(); updateNavIcon(); } },
         }, w.toUpperCase()));
       });
       frag.appendChild(grid);
-
-      if (S.qIdx > 0) {
-        frag.appendChild(el('button', {
-          cls: `${P}-sm-btn`,
-          style: 'margin-top:6px;width:100%',
-          onclick() { S.qIdx = 0; refresh(); },
-        }, '↩ Resetar fila'));
-      }
-
-      frag.appendChild(el('button', {
-        cls: `${P}-sm-btn`,
-        style: 'margin-top:6px;width:100%',
-        onclick() { S.hint = null; S.matches = []; S.qIdx = 0; refresh(); hInput.value = ''; },
-      }, '✕ Limpar jogo'));
+      if (S.qIdx > 0) frag.appendChild(el('button', { cls:`${P}-sm-btn`, style:'margin-top:6px', onclick(){ S.qIdx=0; renderSheetBody(); } }, '↩ Resetar fila'));
+      frag.appendChild(el('button', { cls:`${P}-sm-btn`, style:'margin-top:4px', onclick(){ S.hint=null; S.matches=[]; S.qIdx=0; renderSheetBody(); updateNavIcon(); hInput.value=''; } }, '✕ Limpar jogo'));
     }
 
     return frag;
@@ -453,184 +399,184 @@
 
   function renderEditor(theme) {
     const words = S.lists[theme] || [];
-    const frag = document.createDocumentFragment();
-    frag.appendChild(el('div', { cls: `${P}-label` }, `${THEME_LABELS[theme]} · ${words.length} palavras`));
-    frag.appendChild(el('div', { cls: `${P}-info` }, 'Uma palavra por linha. Salve após editar.'));
-
-    const ta = el('textarea', { cls: `${P}-ta` });
-    ta.value = words.join('\n');
+    const frag  = document.createDocumentFragment();
+    frag.appendChild(el('div', { cls: `${P}-elabel` }, `${THEME_LABELS[theme]} · ${words.length} palavras`));
+    const ta = el('textarea', { cls: `${P}-ta` }); ta.value = words.join('\n');
     frag.appendChild(ta);
-
-    frag.appendChild(el('div', { cls: `${P}-row`, style: 'margin-top:8px' },
-      el('button', {
-        cls: `${P}-sm-btn`,
-        onclick() {
-          if (!confirm('Restaurar lista padrão?\nIsto apagará suas edições.')) return;
-          S.lists[theme] = [...DEFAULTS[theme]];
-          saveList(theme);
-          ta.value = S.lists[theme].join('\n');
-          notify('Lista restaurada!', 'ok');
-        },
-      }, '↩ Padrão'),
-      el('button', {
-        cls: `${P}-sm-btn pri`,
-        onclick() {
-          S.lists[theme] = ta.value.split('\n').map(w => w.trim()).filter(Boolean);
-          saveList(theme);
-          notify(`Salvo! ${S.lists[theme].length} palavras`, 'ok');
-          renderBody();
-        },
-      }, '💾 Salvar'),
+    frag.appendChild(el('div', { cls: `${P}-btn-row` },
+      el('button', { cls: `${P}-sm-btn`, onclick() {
+        if (!confirm('Restaurar padrão?')) return;
+        S.lists[theme] = [...DEFAULTS[theme]]; saveList(theme);
+        ta.value = S.lists[theme].join('\n'); notify('Restaurado!', 'ok');
+      }}, '↩ Padrão'),
+      el('button', { cls: `${P}-sm-btn pri`, onclick() {
+        S.lists[theme] = ta.value.split('\n').map(w => w.trim()).filter(Boolean);
+        saveList(theme); notify(`Salvo! ${S.lists[theme].length} palavras`, 'ok');
+      }}, '💾 Salvar'),
     ));
-
     return frag;
   }
 
   function renderTop100() {
     const words = S.lists.top100_coins || [];
-    const frag = document.createDocumentFragment();
-    frag.appendChild(el('div', { cls: `${P}-label` }, 'Top 100 Criptomoedas · CoinGecko'));
-    frag.appendChild(el('div', { cls: `${P}-info` },
-      `${words.length} termos · Última atualização: ${timeAgo(S.top100At)}`
-    ));
-    frag.appendChild(el('button', {
-      cls: `${P}-sm-btn pri`,
-      style: 'width:100%;margin-bottom:10px',
-      onclick: fetchTop100,
-    }, '🔄 Buscar Top 100 agora (CoinGecko API)'));
-
-    frag.appendChild(el('div', { cls: `${P}-label` }, 'Editar manualmente'));
-    frag.appendChild(el('div', { cls: `${P}-info` }, 'Uma palavra por linha.'));
-
-    const ta = el('textarea', { cls: `${P}-ta` });
-    ta.value = words.join('\n');
+    const frag  = document.createDocumentFragment();
+    frag.appendChild(el('div', { cls: `${P}-elabel` }, `Top 100 · ${words.length} termos · ${timeAgo(S.top100At)}`));
+    frag.appendChild(el('button', { cls: `${P}-sm-btn pri`, style:'width:100%;margin-bottom:10px', onclick: fetchTop100 }, '🔄 Buscar Top 100 (CoinGecko)'));
+    const ta = el('textarea', { cls: `${P}-ta` }); ta.value = words.join('\n');
     frag.appendChild(ta);
-
-    frag.appendChild(el('button', {
-      cls: `${P}-sm-btn pri`,
-      style: 'margin-top:8px;width:100%',
-      onclick() {
-        S.lists.top100_coins = ta.value.split('\n').map(w => w.trim()).filter(Boolean);
-        saveList('top100_coins');
-        notify(`Top 100 salvo! ${S.lists.top100_coins.length} termos`, 'ok');
-        renderBody();
-      },
-    }, '💾 Salvar edições'));
-
+    frag.appendChild(el('button', { cls: `${P}-sm-btn pri`, style:'margin-top:8px;width:100%', onclick() {
+      S.lists.top100_coins = ta.value.split('\n').map(w => w.trim()).filter(Boolean);
+      saveList('top100_coins'); notify(`${S.lists.top100_coins.length} termos salvos`, 'ok');
+    }}, '💾 Salvar edições'));
     return frag;
   }
 
-  // ─── Styles ───────────────────────────────────────────────────────────────────
+  // ─── Styles ───────────────────────────────────────────────────────────────
   function injectStyles() {
     GM_addStyle(`
-      #${P}-fab {
-        position: fixed; z-index: 2147483646;
-        width: 52px; height: 52px; border-radius: 50%;
-        background: #111827; border: 2px solid #3b82f6;
-        color: #fff; font-size: 22px; cursor: grab;
+      /* Nav icon */
+      #${P}-nav-icon {
+        position: relative;
+        background: none; border: none; cursor: pointer;
+        color: #6b7280; padding: 0;
         display: flex; align-items: center; justify-content: center;
-        box-shadow: 0 4px 20px rgba(0,0,0,.6);
-        touch-action: none; user-select: none;
-        transition: box-shadow .15s;
+        min-width: 48px; min-height: 48px;
+        transition: color .2s;
+        touch-action: manipulation;
       }
-      #${P}-fab.dragging { cursor: grabbing; box-shadow: 0 8px 30px rgba(0,0,0,.8); }
-      #${P}-fab.pulse { box-shadow: 0 0 0 6px rgba(59,130,246,.35), 0 4px 20px rgba(0,0,0,.6); }
-      #${P}-badge {
-        position: absolute; top: -5px; right: -5px;
+      #${P}-nav-icon[data-state="ready"]  { color: #3b82f6; }
+      #${P}-nav-icon[data-state="active"] { color: #f59e0b; animation: ${P}-pulse 1s ease-in-out infinite; }
+      @keyframes ${P}-pulse { 0%,100%{opacity:1} 50%{opacity:.55} }
+      #${P}-nav-badge {
+        position: absolute; top: 2px; right: 2px;
         background: #f59e0b; color: #000; font-size: 10px; font-weight: 700;
-        border-radius: 50%; width: 18px; height: 18px;
+        border-radius: 50%; width: 16px; height: 16px;
         display: none; align-items: center; justify-content: center;
-        border: 2px solid #111827;
+        font-family: -apple-system, sans-serif;
       }
+
+      /* Notification toast */
       #${P}-notif {
-        position: fixed; bottom: 150px; right: 16px; z-index: 2147483647;
-        padding: 7px 13px; border-radius: 8px; font-size: 12px; font-weight: 600;
-        font-family: -apple-system, sans-serif; max-width: 260px;
-        pointer-events: none; opacity: 0; transition: opacity .25s;
+        position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+        z-index: 2147483647; padding: 7px 16px; border-radius: 20px;
+        font-size: 12px; font-weight: 600; white-space: nowrap;
+        font-family: -apple-system, sans-serif; pointer-events: none;
+        opacity: 0; transition: opacity .25s;
       }
-      #${P}-notif[data-t="ok"]  { opacity: 1; background: #064e3b; color: #6ee7b7; }
-      #${P}-notif[data-t="err"] { opacity: 1; background: #450a0a; color: #fca5a5; }
-      #${P}-notif[data-t="inf"] { opacity: 1; background: #1e3a5f; color: #93c5fd; }
-      #${P}-panel {
-        position: fixed; z-index: 2147483645;
-        width: 320px; max-width: calc(100vw - 32px); max-height: 72vh;
-        background: #0f1117; border: 1px solid #1e2535; border-radius: 16px;
-        box-shadow: 0 8px 32px rgba(0,0,0,.7);
-        display: none; flex-direction: column; overflow: hidden;
+      #${P}-notif[data-t="ok"]  { opacity:1; background:#064e3b; color:#6ee7b7; }
+      #${P}-notif[data-t="err"] { opacity:1; background:#450a0a; color:#fca5a5; }
+      #${P}-notif[data-t="inf"] { opacity:1; background:#1e3a5f; color:#93c5fd; }
+
+      /* Bottom sheet backdrop */
+      #${P}-backdrop {
+        position: fixed; inset: 0; z-index: 2147483644;
+        background: rgba(0,0,0,.45); opacity: 0; pointer-events: none;
+        transition: opacity .25s;
+      }
+      #${P}-backdrop.open { opacity: 1; pointer-events: auto; }
+
+      /* Bottom sheet */
+      #${P}-sheet {
+        position: fixed; left: 0; right: 0; bottom: 0; z-index: 2147483645;
+        background: #0f1117; border-radius: 18px 18px 0 0;
+        border-top: 1px solid #1e2535;
+        box-shadow: 0 -8px 32px rgba(0,0,0,.6);
+        transform: translateY(100%); transition: transform .3s cubic-bezier(.4,0,.2,1);
+        display: flex; flex-direction: column; max-height: 82vh;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         font-size: 13px; color: #e2e8f0;
       }
-      .${P}-hdr {
-        padding: 11px 13px; background: #161b27; border-bottom: 1px solid #1e2535;
-        display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+      #${P}-sheet.open { transform: translateY(0); }
+
+      /* Drag handle */
+      .${P}-handle {
+        width: 36px; height: 4px; border-radius: 2px;
+        background: #334155; margin: 10px auto 0; flex-shrink: 0;
       }
-      .${P}-hdr-title { font-weight: 700; font-size: 13px; color: #3b82f6; flex: 1; }
-      .${P}-hpill {
-        font-size: 10px; padding: 2px 8px; border-radius: 20px;
-        background: #1e3a5f; color: #60a5fa; font-weight: 600;
+
+      /* Sheet header */
+      .${P}-shdr {
+        padding: 10px 14px 0; display: flex; align-items: center;
+        gap: 8px; flex-shrink: 0;
       }
-      .${P}-close-btn {
+      .${P}-shdr-title { font-weight: 700; font-size: 14px; color: #e2e8f0; flex: 1; }
+      .${P}-shdr-close {
         background: none; border: none; color: #64748b; cursor: pointer;
-        font-size: 20px; line-height: 1; padding: 4px; touch-action: manipulation;
+        font-size: 22px; line-height: 1; padding: 4px 6px;
+        touch-action: manipulation; border-radius: 6px;
       }
-      .${P}-tabs {
-        display: flex; border-bottom: 1px solid #1e2535;
-        overflow-x: auto; scrollbar-width: none; flex-shrink: 0;
+      .${P}-shdr-close:active { background: #1e2535; }
+
+      /* Tab bar */
+      .${P}-stabs {
+        display: flex; overflow-x: auto; scrollbar-width: none;
+        border-bottom: 1px solid #1e2535; flex-shrink: 0; padding: 0 6px;
       }
-      .${P}-tabs::-webkit-scrollbar { display: none; }
-      .${P}-tab {
-        flex-shrink: 0; padding: 9px 11px; font-size: 11px;
-        cursor: pointer; color: #64748b;
-        border-bottom: 2px solid transparent; white-space: nowrap;
-        touch-action: manipulation;
+      .${P}-stabs::-webkit-scrollbar { display: none; }
+      .${P}-stab {
+        flex-shrink: 0; padding: 9px 12px; font-size: 11px;
+        cursor: pointer; color: #64748b; border-bottom: 2px solid transparent;
+        white-space: nowrap; touch-action: manipulation; background: none; border-top: none; border-left: none; border-right: none;
       }
-      .${P}-tab.on { color: #3b82f6; border-bottom-color: #3b82f6; }
-      #${P}-body {
-        flex: 1; overflow-y: auto; padding: 12px;
+      .${P}-stab.on { color: #3b82f6; border-bottom-color: #3b82f6; }
+
+      /* Sheet body */
+      #${P}-sheet-body {
+        flex: 1; overflow-y: auto; padding: 12px 14px;
         scrollbar-width: thin; scrollbar-color: #1e2535 transparent;
       }
-      .${P}-label {
-        font-size: 10px; color: #475569; text-transform: uppercase;
-        letter-spacing: .5px; margin-bottom: 5px;
+
+      /* Hint display */
+      .${P}-hint-row {
+        background: #161b27; border: 1px solid #1e3a5f; border-radius: 10px;
+        padding: 10px 12px; margin-bottom: 10px;
+        display: flex; align-items: center; justify-content: space-between; gap: 8px;
       }
-      .${P}-info { font-size: 11px; color: #64748b; margin-bottom: 6px; }
-      .${P}-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+      .${P}-hint-text {
+        font-size: 20px; font-weight: 700; letter-spacing: 5px;
+        color: #60a5fa; font-family: monospace;
+      }
+      .${P}-hint-meta { font-size: 11px; color: #64748b; text-align: right; flex-shrink: 0; }
+
+      /* Theme chips row */
+      .${P}-theme-row {
+        display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px;
+      }
       .${P}-chip {
-        padding: 7px 11px; border-radius: 20px; border: 1px solid #1e2535;
+        padding: 5px 10px; border-radius: 20px; border: 1px solid #1e2535;
         background: #161b27; color: #94a3b8; font-size: 11px;
         cursor: pointer; touch-action: manipulation; transition: all .15s;
       }
-      .${P}-chip.on {
-        background: #1e3a5f; border-color: #3b82f6; color: #60a5fa; font-weight: 600;
-      }
-      .${P}-chip:active { transform: scale(.95); }
+      .${P}-chip.on { background: #1e3a5f; border-color: #3b82f6; color: #60a5fa; font-weight: 600; }
+      .${P}-chip:active { transform: scale(.94); }
+
+      /* Manual hint input */
       .${P}-hinput {
         width: 100%; box-sizing: border-box; background: #161b27;
         border: 1px solid #1e2535; border-radius: 8px; color: #e2e8f0;
-        font-size: 15px; padding: 9px 11px; margin-bottom: 8px;
+        font-size: 14px; padding: 8px 11px; margin-bottom: 12px;
         font-family: monospace; letter-spacing: 3px;
       }
       .${P}-hinput:focus { outline: none; border-color: #3b82f6; }
-      .${P}-hint-box {
-        background: #161b27; border: 1px solid #1e3a5f; border-radius: 10px;
-        padding: 11px; margin-bottom: 10px; text-align: center;
-      }
-      .${P}-hint-label { font-size: 10px; color: #475569; text-transform: uppercase; margin-bottom: 4px; }
-      .${P}-hint-text {
-        font-size: 22px; font-weight: 700; letter-spacing: 6px;
-        color: #60a5fa; font-family: monospace;
-      }
+
+      /* BIG send button */
       .${P}-send-btn {
-        width: 100%; padding: 14px; background: #1d4ed8; color: #fff;
-        border: none; border-radius: 10px; font-size: 16px; font-weight: 700;
-        cursor: pointer; margin-bottom: 8px; letter-spacing: 1px;
+        width: 100%; padding: 18px; background: #1d4ed8; color: #fff;
+        border: none; border-radius: 12px; font-size: 22px; font-weight: 800;
+        cursor: pointer; margin-bottom: 6px; letter-spacing: 2px;
         touch-action: manipulation; transition: background .15s;
+        box-shadow: 0 4px 16px rgba(29,78,216,.4);
       }
-      .${P}-send-btn:active { background: #1e40af; }
-      .${P}-queue-info { font-size: 11px; color: #64748b; text-align: center; margin-bottom: 10px; }
-      .${P}-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+      .${P}-send-btn:active { background: #1e40af; transform: scale(.98); }
+
+      .${P}-queue-info {
+        font-size: 12px; color: #64748b; text-align: center; margin-bottom: 12px;
+      }
+
+      /* Word chips grid */
+      .${P}-grid { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
       .${P}-wchip {
-        padding: 8px 13px; border-radius: 20px; border: 1px solid #1e2535;
+        padding: 8px 14px; border-radius: 20px; border: 1px solid #1e2535;
         background: #161b27; color: #94a3b8; font-size: 12px;
         cursor: pointer; touch-action: manipulation; transition: all .15s;
       }
@@ -638,186 +584,99 @@
       .${P}-wchip.sent { background: #064e3b; border-color: #047857; color: #6ee7b7; text-decoration: line-through; cursor: default; }
       .${P}-wchip:hover:not(.sent) { border-color: #3b82f6; color: #93c5fd; }
       .${P}-wchip:active:not(.sent) { transform: scale(.95); }
+
       .${P}-empty {
-        color: #475569; font-size: 12px; text-align: center;
-        padding: 18px 0; white-space: pre-line; line-height: 1.6;
+        color: #475569; font-size: 13px; text-align: center;
+        padding: 20px 0; white-space: pre-line; line-height: 1.7;
       }
+
+      /* Editor */
+      .${P}-elabel { font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+      .${P}-ta {
+        width: 100%; box-sizing: border-box; background: #161b27;
+        border: 1px solid #1e2535; border-radius: 8px; color: #e2e8f0;
+        font-size: 11px; padding: 9px; resize: vertical; min-height: 130px;
+        font-family: monospace; line-height: 1.6;
+      }
+      .${P}-ta:focus { outline: none; border-color: #3b82f6; }
+      .${P}-btn-row { display: flex; gap: 8px; margin-top: 8px; }
       .${P}-sm-btn {
-        padding: 9px 13px; border: 1px solid #1e2535; border-radius: 8px;
+        flex: 1; padding: 9px 12px; border: 1px solid #1e2535; border-radius: 8px;
         background: #161b27; color: #e2e8f0; font-size: 12px;
         cursor: pointer; touch-action: manipulation; transition: all .15s;
       }
       .${P}-sm-btn:active { background: #1e2535; }
-      .${P}-sm-btn.pri { background: #1d4ed8; border-color: #3b82f6; color: #fff; }
-      .${P}-ta {
-        width: 100%; box-sizing: border-box; background: #161b27;
-        border: 1px solid #1e2535; border-radius: 8px; color: #e2e8f0;
-        font-size: 11px; padding: 9px; resize: vertical; min-height: 140px;
-        font-family: monospace; line-height: 1.6;
-      }
-      .${P}-ta:focus { outline: none; border-color: #3b82f6; }
-
-      @media (max-width: 400px) {
-        #${P}-panel { width: calc(100vw - 16px); }
-        #${P}-notif { right: 8px; }
-      }
+      .${P}-sm-btn.pri { background: #1d4ed8; border-color: #3b82f6; color: #fff; flex: none; }
     `);
   }
 
-  // ─── FAB position (draggable, persisted) ─────────────────────────────────────
-  function defaultFabPos() {
-    return { left: window.innerWidth - 68, top: window.innerHeight - 200 };
-  }
-
-  function clampPos(left, top) {
-    return {
-      left: Math.max(0, Math.min(left, window.innerWidth  - 52)),
-      top:  Math.max(0, Math.min(top,  window.innerHeight - 52)),
-    };
-  }
-
-  function applyFabPos(fab, pos) {
-    fab.style.left = pos.left + 'px';
-    fab.style.top  = pos.top  + 'px';
-  }
-
-  function positionPanel(fab, panel) {
-    const W = window.innerWidth, H = window.innerHeight;
-    const fabLeft = parseInt(fab.style.left) || 0;
-    const fabTop  = parseInt(fab.style.top)  || 0;
-    const pw = Math.min(320, W - 16);
-    // Horizontal: keep panel inside viewport, prefer aligning near FAB
-    let left = fabLeft + 26 - pw / 2;
-    left = Math.max(8, Math.min(left, W - pw - 8));
-    // Vertical: open above FAB if enough room, else below
-    const spaceAbove = fabTop - 8;
-    const spaceBelow = H - fabTop - 52 - 8;
-    let top;
-    if (spaceAbove >= 200 || spaceAbove >= spaceBelow) {
-      const maxH = Math.min(spaceAbove, H * 0.72);
-      panel.style.maxHeight = maxH + 'px';
-      top = fabTop - maxH - 8;
-    } else {
-      panel.style.maxHeight = Math.min(spaceBelow, H * 0.72) + 'px';
-      top = fabTop + 52 + 8;
-    }
-    panel.style.left = left + 'px';
-    panel.style.top  = Math.max(8, top) + 'px';
-  }
-
-  function makeDraggable(fab, panel) {
-    let active = false, moved = false;
-    let sx, sy, sl, st; // start pointer x/y, start fab left/top
-
-    function start(cx, cy) {
-      active = true; moved = false;
-      sx = cx; sy = cy;
-      sl = parseInt(fab.style.left) || 0;
-      st = parseInt(fab.style.top)  || 0;
-      fab.classList.add('dragging');
-    }
-
-    function move(cx, cy) {
-      if (!active) return;
-      const dx = cx - sx, dy = cy - sy;
-      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
-      const pos = clampPos(sl + dx, st + dy);
-      applyFabPos(fab, pos);
-      if (S.open) positionPanel(fab, panel);
-    }
-
-    function end() {
-      if (!active) return;
-      active = false;
-      fab.classList.remove('dragging');
-      const pos = { left: parseInt(fab.style.left), top: parseInt(fab.style.top) };
-      GM_setValue('fab_pos', pos);
-      if (!moved) {
-        // Tap — toggle panel
-        S.open = !S.open;
-        panel.style.display = S.open ? 'flex' : 'none';
-        if (S.open) { positionPanel(fab, panel); refresh(); }
-      }
-    }
-
-    fab.addEventListener('mousedown',  e => { e.preventDefault(); start(e.clientX, e.clientY); });
-    document.addEventListener('mousemove', e => move(e.clientX, e.clientY));
-    document.addEventListener('mouseup',   end);
-
-    fab.addEventListener('touchstart', e => start(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
-    document.addEventListener('touchmove', e => { if (active) move(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
-    document.addEventListener('touchend',  end, { passive: true });
-  }
-
-  // ─── Build initial DOM ────────────────────────────────────────────────────────
-  function buildDOM() {
-    // Notification toast
+  // ─── Build DOM ────────────────────────────────────────────────────────────
+  function buildSheet() {
+    // Notification
     document.body.appendChild(el('div', { id: `${P}-notif` }));
 
-    // Floating action button
-    const fab = el('div', { id: `${P}-fab` }, '🎮', el('span', { id: `${P}-badge` }));
-    const savedPos = GM_getValue('fab_pos', null);
-    applyFabPos(fab, savedPos ? clampPos(savedPos.left, savedPos.top) : defaultFabPos());
-    document.body.appendChild(fab);
+    // Backdrop
+    const backdrop = el('div', { id: `${P}-backdrop` });
+    backdrop.addEventListener('click', closeSheet);
+    document.body.appendChild(backdrop);
 
-    // Panel
-    const panel = el('div', { id: `${P}-panel` });
+    // Sheet
+    const sheet = el('div', { id: `${P}-sheet` });
+    sheet.appendChild(el('div', { cls: `${P}-handle` }));
 
     // Header
-    panel.appendChild(el('div', { cls: `${P}-hdr` },
-      el('span', { cls: `${P}-hdr-title` }, '🎮 Trivia Helper'),
-      el('span', { id: `${P}-hpill`, cls: `${P}-hpill` }, '—'),
-      el('button', {
-        cls: `${P}-close-btn`,
-        onclick() { S.open = false; panel.style.display = 'none'; },
-      }, '×'),
+    sheet.appendChild(el('div', { cls: `${P}-shdr` },
+      el('span', { cls: `${P}-shdr-title` }, '🎮 Trivia Helper'),
+      el('button', { cls: `${P}-shdr-close`, onclick: closeSheet }, '×'),
     ));
 
     // Tab bar
     const TABS = [
-      ['game',            '🎯 Jogo'],
-      ['casino_terms',    '🎰 Casino'],
-      ['bitsler_terms',   '🌧 Bitsler'],
-      ['blockchain_terms','⛓ Blockchain'],
-      ['top100_coins',    '💰 Top 100'],
+      ['game',             '🎯 Jogo'],
+      ['casino_terms',     '🎰 Casino'],
+      ['bitsler_terms',    '🌧 Bitsler'],
+      ['blockchain_terms', '⛓ Blockchain'],
+      ['top100_coins',     '💰 Top 100'],
     ];
-    const tabBar = el('div', { cls: `${P}-tabs` });
+    const tabBar = el('div', { cls: `${P}-stabs` });
     for (const [id, label] of TABS) {
-      const tab = el('div', { cls: `${P}-tab ${id === S.tab ? 'on' : ''}` }, label);
-      tab.dataset.tabId = id;
+      const tab = el('button', { cls: `${P}-stab ${id === S.sheetTab ? 'on' : ''}` }, label);
+      tab.dataset.tab = id;
       tab.addEventListener('click', () => {
-        S.tab = id;
-        tabBar.querySelectorAll(`.${P}-tab`).forEach(t => {
-          t.classList.toggle('on', t.dataset.tabId === id);
-        });
-        renderBody();
+        S.sheetTab = id;
+        renderSheetBody();
       });
       tabBar.appendChild(tab);
     }
-    panel.appendChild(tabBar);
+    sheet.appendChild(tabBar);
+    sheet.appendChild(el('div', { id: `${P}-sheet-body` }));
 
-    // Scrollable body
-    panel.appendChild(el('div', { id: `${P}-body` }));
+    document.body.appendChild(sheet);
 
-    document.body.appendChild(panel);
+    // Sync backdrop with sheet open class
+    const observer = new MutationObserver(() => {
+      backdrop.classList.toggle('open', sheet.classList.contains('open'));
+    });
+    observer.observe(sheet, { attributes: true, attributeFilter: ['class'] });
 
-    // Wire drag + tap behaviour (replaces simple click)
-    makeDraggable(fab, panel);
+    // Swipe down to close
+    let touchStartY = 0;
+    sheet.addEventListener('touchstart', e => { touchStartY = e.touches[0].clientY; }, { passive: true });
+    sheet.addEventListener('touchend', e => {
+      if (e.changedTouches[0].clientY - touchStartY > 60) closeSheet();
+    }, { passive: true });
   }
 
-  // ─── Init ─────────────────────────────────────────────────────────────────────
+  // ─── Init ─────────────────────────────────────────────────────────────────
   function init() {
     loadStorage();
     injectStyles();
-    buildDOM();
-    refresh();
+    buildSheet();
+    injectNavIcon();
     startObserver();
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 
 })();
