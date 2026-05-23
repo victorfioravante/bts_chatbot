@@ -36,12 +36,12 @@ function probePollingEndpoint(socketToken, fingerprint) {
         path,
         method: "GET",
         headers: {
-          authorization: socketToken,
+          authorization: "guest",
           fp: fingerprint,
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
           Accept: "*/*",
           Origin: "https://www.bitsler.com",
-          Referer: "https://www.bitsler.com/",
+          Referer: "https://www.bitsler.com/chatPop",
         },
       },
       (res) => {
@@ -107,14 +107,17 @@ async function connect() {
   // Polling primeiro (HTTP) para enviar auth headers — depois upgrade para WS.
   // extraHeaders no nível raiz garante envio em ambos os transports no Node.js.
   const parser = buildParser();
+  // O header HTTP "authorization" usa "guest" apenas para abrir o transporte
+  // (confirmado via DevTools). O token real vai no auth do CONNECT packet.
   socket = io("https://stream.bitsler.com", {
     path: "/socket.io",
     autoConnect: false,
+    auth: { token: socketToken },
     ...(parser ? { parser } : {}),
     reconnection: false,
     transports: ["polling", "websocket"],
     extraHeaders: {
-      authorization: socketToken,
+      authorization: "guest",
       fp: fingerprint,
       Origin: "https://www.bitsler.com",
       Referer: "https://www.bitsler.com/",
@@ -122,7 +125,7 @@ async function connect() {
     transportOptions: {
       polling: {
         extraHeaders: {
-          authorization: socketToken,
+          authorization: "guest",
           fp: fingerprint,
           Origin: "https://www.bitsler.com",
           Referer: "https://www.bitsler.com/",
