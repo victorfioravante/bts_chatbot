@@ -311,15 +311,14 @@ async function login() {
           return result.socketToken;
         }
 
-        // Login retornou access_token (REST) mas não socketToken (WebSocket).
-        // Tenta buscar socketToken via endpoints autenticados.
-        if (result?.token || result?.cookie) {
-          logger.info(`[Auth] Login OK (REST token) — buscando socketToken via API...`);
-          const st = await fetchSocketTokenFromUserApi(result.token, result.cookie);
-          if (st) return st;
+        // Bitsler retorna access_token (hex) no login — é o mesmo token usado
+        // pelo WebSocket no header Authorization (confirmado pelo diceroll_pro).
+        if (result?.token) {
+          logger.info(`[Auth] Login OK (${label}) — usando access_token para WebSocket.`);
+          return result.token;
         }
 
-        logger.warn(`[Auth] ${label}: socketToken não encontrado`);
+        logger.warn(`[Auth] ${label}: nenhum token utilizável na resposta`);
       } catch (e) {
         logger.warn(`[Auth] ${label} rejeitado: ${e.message}`);
         if (e.status !== 401 && e.status !== 422 && e.status !== 403) throw e;
@@ -357,8 +356,11 @@ let _tokenObtainedAt = 0;
 const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hora
 
 async function getSocketToken(forceRefresh = false) {
-  // SOCKET_TOKEN manual sempre tem prioridade — independente de ter USERNAME
-  if (process.env.SOCKET_TOKEN) {
+  // SOCKET_TOKEN manual só é usado quando NÃO há credenciais configuradas.
+  // Se USERNAME+PASSWORD estiverem no .env, o login automático tem prioridade
+  // para evitar loop com token expirado.
+  const hasCredentials = process.env.BITSLER_USERNAME && process.env.BITSLER_PASSWORD;
+  if (!hasCredentials && process.env.SOCKET_TOKEN) {
     logger.info("[Auth] Usando SOCKET_TOKEN manual do .env");
     return process.env.SOCKET_TOKEN;
   }
