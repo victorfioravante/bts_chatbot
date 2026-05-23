@@ -29,10 +29,10 @@ function buildParser() {
 // Faz um GET raw ao endpoint de polling para ver a resposta do servidor
 function probePollingEndpoint(socketToken, fingerprint) {
   return new Promise((resolve) => {
-    const path = `/chat/?EIO=4&transport=polling&t=${Date.now()}`;
+    const path = `/socket.io/?EIO=4&transport=polling&t=${Date.now()}`;
     const req = https.request(
       {
-        hostname: "ws.bitsler.com",
+        hostname: "stream.bitsler.com",
         path,
         method: "GET",
         headers: {
@@ -107,8 +107,8 @@ async function connect() {
   // Polling primeiro (HTTP) para enviar auth headers — depois upgrade para WS.
   // extraHeaders no nível raiz garante envio em ambos os transports no Node.js.
   const parser = buildParser();
-  socket = io("https://ws.bitsler.com", {
-    path: "/chat",
+  socket = io("https://stream.bitsler.com", {
+    path: "/socket.io",
     autoConnect: false,
     ...(parser ? { parser } : {}),
     reconnection: false,
@@ -116,12 +116,16 @@ async function connect() {
     extraHeaders: {
       authorization: socketToken,
       fp: fingerprint,
+      Origin: "https://www.bitsler.com",
+      Referer: "https://www.bitsler.com/",
     },
     transportOptions: {
       polling: {
         extraHeaders: {
           authorization: socketToken,
           fp: fingerprint,
+          Origin: "https://www.bitsler.com",
+          Referer: "https://www.bitsler.com/",
         },
       },
     },
