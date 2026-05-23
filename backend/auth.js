@@ -105,7 +105,7 @@ function rawPost(url, payload) {
           if (res.statusCode >= 400) {
             const e = new Error(`HTTP ${res.statusCode}: ${data.slice(0, 120)}`);
             e.status = res.statusCode;
-            throw e;
+            return reject(e);
           }
 
           if (!json || json?.success === false) {
@@ -321,7 +321,10 @@ async function login() {
         logger.warn(`[Auth] ${label}: nenhum token utilizável na resposta`);
       } catch (e) {
         logger.warn(`[Auth] ${label} rejeitado: ${e.message}`);
-        if (e.status !== 401 && e.status !== 422 && e.status !== 403) throw e;
+        // 401/422/403 = credenciais inválidas (tenta próximo candidato)
+        // 5xx/521    = erro temporário do servidor (não é culpa das credenciais)
+        const retryable = [401, 422, 403, 500, 502, 503, 521, 522, 524];
+        if (!retryable.includes(e.status)) throw e;
       }
     }
   }
