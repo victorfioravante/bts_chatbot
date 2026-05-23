@@ -321,6 +321,11 @@
       pill.textContent = th ? THEME_LABELS[th] : '—';
     }
 
+    // Re-position panel if open (in case content height changed)
+    const fab   = document.getElementById(`${P}-fab`);
+    const panel = document.getElementById(`${P}-panel`);
+    if (fab && panel && S.open) positionPanel(fab, panel);
+
     renderBody();
   }
 
@@ -519,16 +524,16 @@
   function injectStyles() {
     GM_addStyle(`
       #${P}-fab {
-        position: fixed; bottom: 80px; right: 16px; z-index: 2147483646;
+        position: fixed; z-index: 2147483646;
         width: 52px; height: 52px; border-radius: 50%;
         background: #111827; border: 2px solid #3b82f6;
-        color: #fff; font-size: 22px; cursor: pointer;
+        color: #fff; font-size: 22px; cursor: grab;
         display: flex; align-items: center; justify-content: center;
         box-shadow: 0 4px 20px rgba(0,0,0,.6);
-        touch-action: manipulation; user-select: none;
-        transition: transform .15s, box-shadow .15s;
+        touch-action: none; user-select: none;
+        transition: box-shadow .15s;
       }
-      #${P}-fab:active { transform: scale(.9); }
+      #${P}-fab.dragging { cursor: grabbing; box-shadow: 0 8px 30px rgba(0,0,0,.8); }
       #${P}-fab.pulse { box-shadow: 0 0 0 6px rgba(59,130,246,.35), 0 4px 20px rgba(0,0,0,.6); }
       #${P}-badge {
         position: absolute; top: -5px; right: -5px;
@@ -547,7 +552,7 @@
       #${P}-notif[data-t="err"] { opacity: 1; background: #450a0a; color: #fca5a5; }
       #${P}-notif[data-t="inf"] { opacity: 1; background: #1e3a5f; color: #93c5fd; }
       #${P}-panel {
-        position: fixed; bottom: 146px; right: 16px; z-index: 2147483645;
+        position: fixed; z-index: 2147483645;
         width: 320px; max-width: calc(100vw - 32px); max-height: 72vh;
         background: #0f1117; border: 1px solid #1e2535; border-radius: 16px;
         box-shadow: 0 8px 32px rgba(0,0,0,.7);
@@ -652,13 +657,96 @@
       }
       .${P}-ta:focus { outline: none; border-color: #3b82f6; }
 
-      /* Mobile adjustments */
       @media (max-width: 400px) {
-        #${P}-panel { right: 8px; bottom: 140px; width: calc(100vw - 16px); }
-        #${P}-fab   { right: 12px; bottom: 70px; }
+        #${P}-panel { width: calc(100vw - 16px); }
         #${P}-notif { right: 8px; }
       }
     `);
+  }
+
+  // ─── FAB position (draggable, persisted) ─────────────────────────────────────
+  function defaultFabPos() {
+    return { left: window.innerWidth - 68, top: window.innerHeight - 200 };
+  }
+
+  function clampPos(left, top) {
+    return {
+      left: Math.max(0, Math.min(left, window.innerWidth  - 52)),
+      top:  Math.max(0, Math.min(top,  window.innerHeight - 52)),
+    };
+  }
+
+  function applyFabPos(fab, pos) {
+    fab.style.left = pos.left + 'px';
+    fab.style.top  = pos.top  + 'px';
+  }
+
+  function positionPanel(fab, panel) {
+    const W = window.innerWidth, H = window.innerHeight;
+    const fabLeft = parseInt(fab.style.left) || 0;
+    const fabTop  = parseInt(fab.style.top)  || 0;
+    const pw = Math.min(320, W - 16);
+    // Horizontal: keep panel inside viewport, prefer aligning near FAB
+    let left = fabLeft + 26 - pw / 2;
+    left = Math.max(8, Math.min(left, W - pw - 8));
+    // Vertical: open above FAB if enough room, else below
+    const spaceAbove = fabTop - 8;
+    const spaceBelow = H - fabTop - 52 - 8;
+    let top;
+    if (spaceAbove >= 200 || spaceAbove >= spaceBelow) {
+      const maxH = Math.min(spaceAbove, H * 0.72);
+      panel.style.maxHeight = maxH + 'px';
+      top = fabTop - maxH - 8;
+    } else {
+      panel.style.maxHeight = Math.min(spaceBelow, H * 0.72) + 'px';
+      top = fabTop + 52 + 8;
+    }
+    panel.style.left = left + 'px';
+    panel.style.top  = Math.max(8, top) + 'px';
+  }
+
+  function makeDraggable(fab, panel) {
+    let active = false, moved = false;
+    let sx, sy, sl, st; // start pointer x/y, start fab left/top
+
+    function start(cx, cy) {
+      active = true; moved = false;
+      sx = cx; sy = cy;
+      sl = parseInt(fab.style.left) || 0;
+      st = parseInt(fab.style.top)  || 0;
+      fab.classList.add('dragging');
+    }
+
+    function move(cx, cy) {
+      if (!active) return;
+      const dx = cx - sx, dy = cy - sy;
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
+      const pos = clampPos(sl + dx, st + dy);
+      applyFabPos(fab, pos);
+      if (S.open) positionPanel(fab, panel);
+    }
+
+    function end() {
+      if (!active) return;
+      active = false;
+      fab.classList.remove('dragging');
+      const pos = { left: parseInt(fab.style.left), top: parseInt(fab.style.top) };
+      GM_setValue('fab_pos', pos);
+      if (!moved) {
+        // Tap — toggle panel
+        S.open = !S.open;
+        panel.style.display = S.open ? 'flex' : 'none';
+        if (S.open) { positionPanel(fab, panel); refresh(); }
+      }
+    }
+
+    fab.addEventListener('mousedown',  e => { e.preventDefault(); start(e.clientX, e.clientY); });
+    document.addEventListener('mousemove', e => move(e.clientX, e.clientY));
+    document.addEventListener('mouseup',   end);
+
+    fab.addEventListener('touchstart', e => start(e.touches[0].clientX, e.touches[0].clientY), { passive: true });
+    document.addEventListener('touchmove', e => { if (active) move(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+    document.addEventListener('touchend',  end, { passive: true });
   }
 
   // ─── Build initial DOM ────────────────────────────────────────────────────────
@@ -668,11 +756,8 @@
 
     // Floating action button
     const fab = el('div', { id: `${P}-fab` }, '🎮', el('span', { id: `${P}-badge` }));
-    fab.addEventListener('click', () => {
-      S.open = !S.open;
-      panel.style.display = S.open ? 'flex' : 'none';
-      if (S.open) refresh();
-    });
+    const savedPos = GM_getValue('fab_pos', null);
+    applyFabPos(fab, savedPos ? clampPos(savedPos.left, savedPos.top) : defaultFabPos());
     document.body.appendChild(fab);
 
     // Panel
@@ -715,6 +800,9 @@
     panel.appendChild(el('div', { id: `${P}-body` }));
 
     document.body.appendChild(panel);
+
+    // Wire drag + tap behaviour (replaces simple click)
+    makeDraggable(fab, panel);
   }
 
   // ─── Init ─────────────────────────────────────────────────────────────────────
