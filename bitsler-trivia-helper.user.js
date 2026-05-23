@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bitsler Trivia Helper
 // @namespace    bitsler-trivia-helper
-// @version      2.0.0
+// @version      2.1.0
 // @description  Detecta tema e dicas do trivia Bitsler, sugere respostas e envia com um clique
 // @author       victorfioravante
 // @match        https://www.bitsler.com/*
@@ -10,6 +10,7 @@
 // @grant        GM_xmlhttpRequest
 // @grant        GM_addStyle
 // @connect      api.coingecko.com
+// @connect      localhost
 // @run-at       document-idle
 // ==/UserScript==
 
@@ -701,6 +702,41 @@
     }, { passive: true });
   }
 
+  // ─── Token bridge (envia socketToken ao bot local) ────────────────────────
+  // Extrai o token do Vue store e envia ao backend em localhost:3001.
+  // Permite que o bot reconecte mesmo quando www.bitsler.com está fora do ar,
+  // aproveitando a sessão WS já ativa no browser.
+  const BOT_PORT = GM_getValue('bot_port', 3001);
+  let _lastPushedToken = null;
+
+  function pushTokenToBot() {
+    // Tenta múltiplos caminhos no store — estrutura pode variar por versão
+    const store = window.__vue_store__ || window.__store__;
+    const state = store?.state ?? {};
+    const token =
+      state?.chat?.user?.socketToken ??
+      state?.user?.socketToken ??
+      state?.auth?.socketToken ??
+      state?.chat?.socketToken ??
+      null;
+
+    if (!token || token === _lastPushedToken) return;
+
+    GM_xmlhttpRequest({
+      method: 'POST',
+      url: `http://localhost:${BOT_PORT}/api/v1/socket-token`,
+      headers: { 'Content-Type': 'application/json' },
+      data: JSON.stringify({ token }),
+      onload(r) {
+        if (r.status === 200) {
+          _lastPushedToken = token;
+          console.log('[BTH] Token enviado ao bot local ✓');
+        }
+      },
+      onerror() {}, // bot offline — silencioso
+    });
+  }
+
   // ─── Init ─────────────────────────────────────────────────────────────────
   function init() {
     loadStorage();
@@ -708,6 +744,10 @@
     buildSheet();
     injectNavIcon();
     startObserver();
+
+    // Envia token imediatamente e depois a cada 2 minutos (cobre renovações)
+    setTimeout(pushTokenToBot, 3000);
+    setInterval(pushTokenToBot, 2 * 60 * 1000);
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

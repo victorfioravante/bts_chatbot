@@ -8,6 +8,23 @@ const pendingQueue = require("../modules/pendingQueue");
 const triviaDetector = require("../modules/triviaDetector");
 const config = require("../config");
 const { sseMiddleware } = require("./sse");
+const auth = require("../auth");
+
+// ─── Browser token bridge (Tampermonkey → backend) ──────────────────────────
+// Recebe o socketToken extraído do window.__vue_store__ pelo script Tampermonkey.
+// Não exige autenticação — só aceita de localhost (sem CORS para origens externas).
+router.post("/socket-token", (req, res) => {
+  const { token } = req.body || {};
+  if (!token || typeof token !== "string" || token.length < 20) {
+    return res.status(400).json({ error: "token inválido" });
+  }
+  const isNew = auth.setBrowserToken(token);
+  if (isNew && !socketClient.isConnected()) {
+    // Token novo e bot desconectado: tenta reconectar imediatamente
+    setTimeout(() => socketClient.connect(), 500);
+  }
+  res.json({ ok: true, isNew });
+});
 
 // ─── Status ─────────────────────────────────────────────────────────────────
 
