@@ -14,15 +14,14 @@ const auth = require("../auth");
 // Recebe o socketToken extraído do window.__vue_store__ pelo script Tampermonkey.
 // Não exige autenticação — só aceita de localhost (sem CORS para origens externas).
 router.post("/socket-token", (req, res) => {
-  const { token, fingerprint } = req.body || {};
+  const { token, fingerprint, atCookie } = req.body || {};
   if (!token || typeof token !== "string" || token.length < 20) {
     return res.status(400).json({ error: "token inválido" });
   }
-  // Atualiza fingerprint em runtime se recebido (evita precisar reiniciar o bot)
   if (fingerprint && typeof fingerprint === "string" && fingerprint.length >= 16) {
     process.env.BITSLER_FINGERPRINT = fingerprint;
   }
-  const isNew = auth.setBrowserToken(token);
+  const isNew = auth.setBrowserToken(token, atCookie);
   if (isNew && !socketClient.isConnected()) {
     setTimeout(() => socketClient.connect(), 500);
   }

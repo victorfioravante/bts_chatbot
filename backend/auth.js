@@ -308,13 +308,16 @@ async function login() {
 
         if (result?.socketToken) {
           logger.info("[Auth] Login OK — socketToken JWT obtido diretamente.");
+          if (result.cookie) _loginCookie = result.cookie;
           return result.socketToken;
         }
 
-        // Bitsler retorna access_token (hex) no login — é o mesmo token usado
-        // pelo WebSocket no header Authorization (confirmado pelo diceroll_pro).
         if (result?.token) {
-          logger.info(`[Auth] Login OK (${label}) — usando access_token para WebSocket.`);
+          logger.info(`[Auth] Login OK (${label}) — access_token obtido.`);
+          if (result.cookie) {
+            _loginCookie = result.cookie;
+            logger.info(`[Auth] Cookie de sessão armazenado: ${result.cookie.slice(0, 30)}…`);
+          }
           return result.token;
         }
 
@@ -358,17 +361,33 @@ let _cachedToken = null;
 let _tokenObtainedAt = 0;
 const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hora
 
-// Token injetado pela Tampermonkey direto do browser aberto
+// Token e cookie injetados pela Tampermonkey direto do browser aberto
 let _browserToken = null;
+let _browserCookie = null; // "at=<value>" — cookie de sessão do Bitsler
 let _browserTokenAt = 0;
 const BROWSER_TOKEN_TTL_MS = 4 * 60 * 60 * 1000; // 4 horas
 
-function setBrowserToken(token) {
-  if (!token || token === _browserToken) return false;
-  _browserToken = token;
-  _browserTokenAt = Date.now();
-  logger.info("[Auth] Token recebido do browser (Tampermonkey).");
-  return true;
+// Cookie do login automático (obtido via Set-Cookie do /api/login)
+let _loginCookie = null;
+
+function setBrowserToken(token, atCookie) {
+  let changed = false;
+  if (token && token !== _browserToken) {
+    _browserToken = token;
+    _browserTokenAt = Date.now();
+    changed = true;
+  }
+  if (atCookie && atCookie !== _browserCookie) {
+    _browserCookie = atCookie;
+    changed = true;
+  }
+  if (changed) logger.info("[Auth] Token/cookie recebido do browser (Tampermonkey).");
+  return changed;
+}
+
+function getSocketCookie() {
+  // Prioridade: cookie do login > cookie do browser > BITSLER_AT_COOKIE do .env
+  return _loginCookie || _browserCookie || process.env.BITSLER_AT_COOKIE || null;
 }
 
 async function getSocketToken(forceRefresh = false) {
@@ -416,4 +435,4 @@ function clearCache() {
   _tokenObtainedAt = 0;
 }
 
-module.exports = { getSocketToken, clearCache, generateTOTP, setBrowserToken };
+module.exports = { getSocketToken, getSocketCookie, clearCache, generateTOTP, setBrowserToken };

@@ -718,14 +718,16 @@
       const token = settings?.user?.token;
       if (!token || token === _lastPushedToken) return;
 
-      // Fingerprint do cookie fpstore
+      // Fingerprint e cookie de sessão
       const fp = document.cookie.match(/fpstore=([a-f0-9]+)/i)?.[1] ?? '';
+      const atMatch = document.cookie.match(/\bat=([^;]+)/);
+      const atCookie = atMatch ? `at=${atMatch[1]}` : '';
 
       GM_xmlhttpRequest({
         method: 'POST',
         url: `http://localhost:${BOT_PORT}/api/v1/socket-token`,
         headers: { 'Content-Type': 'application/json' },
-        data: JSON.stringify({ token, fingerprint: fp }),
+        data: JSON.stringify({ token, fingerprint: fp, atCookie }),
         onload(r) {
           if (r.status === 200) {
             _lastPushedToken = token;

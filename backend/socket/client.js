@@ -94,6 +94,10 @@ async function connect() {
     return;
   }
 
+  const atCookie = auth.getSocketCookie();
+  if (atCookie) logger.info(`[Auth] Cookie de sessão disponível.`);
+  else logger.warn("[Auth] Sem cookie 'at' — adicione BITSLER_AT_COOKIE no .env ou mantenha o chatPop aberto.");
+
   if (socket) {
     socket.removeAllListeners();
     socket.disconnect();
@@ -107,31 +111,24 @@ async function connect() {
   // Polling primeiro (HTTP) para enviar auth headers — depois upgrade para WS.
   // extraHeaders no nível raiz garante envio em ambos os transports no Node.js.
   const parser = buildParser();
-  // O header HTTP "authorization" usa "guest" apenas para abrir o transporte
-  // (confirmado via DevTools). O token real vai no auth do CONNECT packet.
+  // Browser envia authorization:guest no header HTTP — autenticação real
+  // acontece via cookie "at" (sessão do domínio .bitsler.com).
+  const sessionHeaders = {
+    authorization: "guest",
+    fp: fingerprint,
+    Origin: "https://www.bitsler.com",
+    Referer: "https://www.bitsler.com/chatPop",
+    ...(atCookie ? { Cookie: atCookie } : {}),
+  };
+
   socket = io("https://stream.bitsler.com", {
     path: "/socket.io",
     autoConnect: false,
-    auth: { token: socketToken },
     ...(parser ? { parser } : {}),
     reconnection: false,
     transports: ["polling", "websocket"],
-    extraHeaders: {
-      authorization: "guest",
-      fp: fingerprint,
-      Origin: "https://www.bitsler.com",
-      Referer: "https://www.bitsler.com/",
-    },
-    transportOptions: {
-      polling: {
-        extraHeaders: {
-          authorization: "guest",
-          fp: fingerprint,
-          Origin: "https://www.bitsler.com",
-          Referer: "https://www.bitsler.com/",
-        },
-      },
-    },
+    extraHeaders: sessionHeaders,
+    transportOptions: { polling: { extraHeaders: sessionHeaders } },
   });
 
   // Log de baixo nível para diagnóstico de transport close
