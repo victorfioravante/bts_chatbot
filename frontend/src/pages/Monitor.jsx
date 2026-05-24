@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "../store";
-import { Settings2, Send, Gamepad2, Trophy } from "lucide-react";
+import { Settings2, Send, Gamepad2, Trophy, RefreshCw } from "lucide-react";
 
 const API = "/api/v1";
 
@@ -125,12 +125,78 @@ export default function Monitor() {
   const [autoScroll, setAutoScroll] = useState(true);
   const bottomRef = useRef(null);
 
+  // Chat input state
+  const [chatMsg, setChatMsg] = useState("");
+  const [chatChannel, setChatChannel] = useState(null);
+  const [chatFeedback, setChatFeedback] = useState(null); // { ok, text }
+  const [top100Feedback, setTop100Feedback] = useState(null);
+
   const { data: cfg } = useQuery({
     queryKey: ["config"],
     queryFn: () => fetch("/api/v1/config").then((r) => r.json()),
   });
 
   const activeChannels = new Set(cfg?.channels?.autoJoin || ["en", "br", "system"]);
+  const activeChannelList = [...activeChannels].filter((c) => c !== "system").sort();
+
+  // Default chatChannel to first active (non-system) channel when config loads
+  useEffect(() => {
+    if (!chatChannel && activeChannelList.length > 0) {
+      setChatChannel(activeChannelList[0]);
+    }
+  }, [activeChannelList.join(",")]); // eslint-disable-line
+
+  // Trivia toggle query
+  const { data: triviaStatus } = useQuery({
+    queryKey: ["trivia-status"],
+    queryFn: () => fetch("/api/v1/trivia/status").then((r) => r.json()),
+    refetchInterval: 10000,
+  });
+
+  const triviaToggle = useMutation({
+    mutationFn: (enable) =>
+      fetch(`/api/v1/trivia/${enable ? "enable" : "disable"}`, { method: "POST" }).then((r) => r.json()),
+    onSuccess: () => qc.invalidateQueries(["trivia-status"]),
+  });
+
+  const sendChatMsg = () => {
+    const msg = chatMsg.trim();
+    const ch = chatChannel || activeChannelList[0] || "en";
+    if (!msg || !ch) return;
+    fetch("/api/v1/say", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channel: ch, message: msg }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        setChatMsg("");
+        setChatFeedback({ ok: d.ok, text: d.ok ? "Enviado!" : "Falhou" });
+        setTimeout(() => setChatFeedback(null), 3000);
+      })
+      .catch(() => {
+        setChatFeedback({ ok: false, text: "Erro ao enviar" });
+        setTimeout(() => setChatFeedback(null), 3000);
+      });
+  };
+
+  const refreshTop100 = () => {
+    setTop100Feedback({ loading: true, text: "Atualizando..." });
+    fetch("/api/v1/trivia/top100/refresh", { method: "POST" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.ok) {
+          setTop100Feedback({ ok: true, text: `✓ ${d.count} moedas` });
+        } else {
+          setTop100Feedback({ ok: false, text: d.error || "Erro" });
+        }
+        setTimeout(() => setTop100Feedback(null), 4000);
+      })
+      .catch(() => {
+        setTop100Feedback({ ok: false, text: "Erro" });
+        setTimeout(() => setTop100Feedback(null), 4000);
+      });
+  };
 
   const saveChannels = useMutation({
     mutationFn: (channels) =>
@@ -193,6 +259,36 @@ export default function Monitor() {
             />
             Auto-scroll
           </label>
+          {/* Trivia toggle */}
+          <button
+            onClick={() => triviaToggle.mutate(!triviaStatus?.enabled)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+              triviaStatus?.enabled
+                ? "bg-green-800 border-green-600 text-green-200 hover:bg-green-700"
+                : "bg-gray-800 border-gray-700 text-gray-400 hover:text-white"
+            }`}
+            title={triviaStatus?.enabled ? "Trivia ativo — clique para desativar" : "Trivia inativo — clique para ativar"}
+          >
+            🎮 Trivia {triviaStatus?.enabled ? "ON" : "OFF"}
+          </button>
+
+          {/* Top 100 refresh */}
+          <button
+            onClick={refreshTop100}
+            disabled={top100Feedback?.loading}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+              top100Feedback?.ok === true
+                ? "bg-green-800 border-green-600 text-green-200"
+                : top100Feedback?.ok === false
+                ? "bg-red-900 border-red-700 text-red-200"
+                : "bg-gray-800 border-gray-700 text-gray-400 hover:text-white"
+            }`}
+            title="Atualizar Top 100 moedas do CoinMarketCap"
+          >
+            <RefreshCw className={`w-3 h-3 ${top100Feedback?.loading ? "animate-spin" : ""}`} />
+            {top100Feedback ? top100Feedback.text : "Top 100"}
+          </button>
+
           <button
             onClick={() => setShowRoomPicker((v) => !v)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-colors ${
@@ -295,6 +391,51 @@ export default function Monitor() {
           })
         )}
         <div ref={bottomRef} />
+      </div>
+
+      {/* Chat input bar */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 flex items-center gap-2">
+        {/* Channel selector */}
+        <select
+          value={chatChannel || ""}
+          onChange={(e) => setChatChannel(e.target.value)}
+          className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-sm text-white font-mono shrink-0 focus:outline-none focus:border-blue-500"
+        >
+          {activeChannelList.length === 0 ? (
+            <option value="en">en</option>
+          ) : (
+            activeChannelList.map((ch) => (
+              <option key={ch} value={ch}>{ch}</option>
+            ))
+          )}
+        </select>
+
+        {/* Message input */}
+        <input
+          type="text"
+          value={chatMsg}
+          onChange={(e) => setChatMsg(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") sendChatMsg(); }}
+          placeholder="Digite uma mensagem para enviar ao chat..."
+          className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+        />
+
+        {/* Feedback */}
+        {chatFeedback && (
+          <span className={`text-xs shrink-0 ${chatFeedback.ok ? "text-green-400" : "text-red-400"}`}>
+            {chatFeedback.text}
+          </span>
+        )}
+
+        {/* Send button */}
+        <button
+          onClick={sendChatMsg}
+          disabled={!chatMsg.trim()}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-700 hover:bg-blue-600 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg text-sm transition-colors shrink-0"
+        >
+          <Send className="w-3.5 h-3.5" />
+          Enviar
+        </button>
       </div>
     </div>
   );
