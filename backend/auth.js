@@ -386,15 +386,28 @@ function setBrowserToken(token, atCookie) {
 }
 
 function getSocketCookie() {
-  // Prioridade: cookie do login > cookie do browser > env
-  // Suporta BITSLER_AT_COOKIE (chatbot) e BITSLER_COOKIE (dice monitor)
-  return _loginCookie || _browserCookie || process.env.BITSLER_AT_COOKIE || process.env.BITSLER_COOKIE || null;
+  // Prioridade: cookie do browser (sessão real) > cookie do login API > env
+  // Cookie do browser e token do browser devem ser da mesma sessão para ws.bitsler.com aceitar
+  return _browserCookie || process.env.BITSLER_AT_COOKIE || process.env.BITSLER_COOKIE || _loginCookie || null;
 }
 
 async function getSocketToken(forceRefresh = false) {
   const hasCredentials = process.env.BITSLER_USERNAME && process.env.BITSLER_PASSWORD;
 
-  // 1. Login automático com credenciais (mais fresco, preferido)
+  // 1. Token do browser via Tampermonkey — sessão real do browser, aceita pelo chat WS
+  if (!forceRefresh && _browserToken && Date.now() - _browserTokenAt < BROWSER_TOKEN_TTL_MS) {
+    logger.info("[Auth] Usando token do browser (Tampermonkey).");
+    return _browserToken;
+  }
+
+  // 2. Token manual do .env (SOCKET_TOKEN ou BITSLER_TOKEN)
+  const manualToken = process.env.SOCKET_TOKEN || process.env.BITSLER_TOKEN;
+  if (manualToken) {
+    logger.info(`[Auth] Usando token manual do .env (${process.env.SOCKET_TOKEN ? "SOCKET_TOKEN" : "BITSLER_TOKEN"})`);
+    return manualToken;
+  }
+
+  // 3. Login automático com credenciais (gera sessão nova — pode não ser aceita pelo chat WS)
   if (hasCredentials) {
     const now = Date.now();
     if (!forceRefresh && _cachedToken && now - _tokenObtainedAt < TOKEN_TTL_MS) {
@@ -405,31 +418,13 @@ async function getSocketToken(forceRefresh = false) {
       _tokenObtainedAt = Date.now();
       return _cachedToken;
     } catch (err) {
-      logger.warn(`[Auth] Login falhou: ${err.message} — tentando token do browser...`);
+      logger.warn(`[Auth] Login falhou: ${err.message}`);
     }
   }
 
-  // 2. Token injetado pela Tampermonkey (válido enquanto o browser estiver aberto)
-  if (_browserToken && Date.now() - _browserTokenAt < BROWSER_TOKEN_TTL_MS) {
-    logger.info("[Auth] Usando token do browser (Tampermonkey).");
-    return _browserToken;
-  }
-
-  // 3. Token manual do .env — suporta SOCKET_TOKEN (chatbot) e BITSLER_TOKEN (dice monitor)
-  const manualToken = process.env.SOCKET_TOKEN || process.env.BITSLER_TOKEN;
-  if (manualToken) {
-    logger.info(`[Auth] Usando token manual do .env (${process.env.SOCKET_TOKEN ? "SOCKET_TOKEN" : "BITSLER_TOKEN"})`);
-    return manualToken;
-  }
-
-  if (!hasCredentials) {
-    throw new Error(
-      "Sem token disponível. Configure credenciais no .env ou mantenha o chat aberto com Tampermonkey."
-    );
-  }
-
-  // Relança o erro original do login
-  return login();
+  throw new Error(
+    "Sem token disponível. Mantenha o chat aberto com Tampermonkey ou configure SOCKET_TOKEN no .env."
+  );
 }
 
 function clearCache() {
