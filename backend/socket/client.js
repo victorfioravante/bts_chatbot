@@ -119,12 +119,14 @@ async function connect() {
   // Browser envia authorization:guest no header HTTP — autenticação real
   // acontece via cookie "at" (sessão do domínio .bitsler.com).
   const sessionHeaders = {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
     authorization: "guest",
     fp: fingerprint,
     Origin: "https://www.bitsler.com",
     Referer: "https://www.bitsler.com/chatPop",
     ...(atCookie ? { Cookie: atCookie } : {}),
   };
+  logger.info(`[WS] Cookie presente: ${atCookie ? "sim (" + atCookie.slice(0, 20) + "…)" : "NÃO — sem sessão autenticada"}`);
 
   // socket.io v4 sends auth in the CONNECT packet — server validates token here
   const authPayload = socketToken ? { token: socketToken } : undefined;
