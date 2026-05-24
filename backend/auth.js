@@ -387,8 +387,23 @@ function setBrowserToken(token, atCookie) {
 
 function getSocketCookie() {
   // Prioridade: BITSLER_COOKIE (cookie completo do browser) > browser injetado > BITSLER_AT_COOKIE > login
-  // Cookie completo (at + e_at + fpstore + settings + ...) é o que o ws.bitsler.com/chat aceita
-  return process.env.BITSLER_COOKIE || _browserCookie || process.env.BITSLER_AT_COOKIE || _loginCookie || null;
+  if (process.env.BITSLER_COOKIE) {
+    logger.info(`[Auth] Usando BITSLER_COOKIE (${process.env.BITSLER_COOKIE.length} chars)`);
+    return process.env.BITSLER_COOKIE;
+  }
+  if (_browserCookie) {
+    logger.info(`[Auth] Usando cookie do browser (Tampermonkey)`);
+    return _browserCookie;
+  }
+  if (process.env.BITSLER_AT_COOKIE) {
+    logger.info(`[Auth] Usando BITSLER_AT_COOKIE (${process.env.BITSLER_AT_COOKIE.length} chars)`);
+    return process.env.BITSLER_AT_COOKIE;
+  }
+  if (_loginCookie) {
+    logger.info(`[Auth] Usando cookie do login API`);
+    return _loginCookie;
+  }
+  return null;
 }
 
 async function getSocketToken(forceRefresh = false) {
