@@ -703,39 +703,75 @@
   }
 
   // ─── Token bridge (envia socketToken ao bot local) ────────────────────────
-  // Extrai o token do Vue store e envia ao backend em localhost:3001.
-  // Permite que o bot reconecte mesmo quando www.bitsler.com está fora do ar,
-  // aproveitando a sessão WS já ativa no browser.
+  // O token real do WebSocket (64-char hex) está no header `authorization` da
+  // conexão WS. Interceptamos XMLHttpRequest e fetch para capturá-lo quando
+  // o chat JS chama a API que retorna esse token antes de abrir o socket.
   const BOT_PORT = GM_getValue('bot_port', 3001);
   let _lastPushedToken = null;
 
+  // Intercepta fetch para capturar o token de 64 chars hex
+  const _origFetch = window.fetch;
+  window.fetch = async function(...args) {
+    const resp = await _origFetch.apply(this, args);
+    try {
+      const clone = resp.clone();
+      const text = await clone.text();
+      // Procura token de 64 chars hex no body da resposta
+      const m = text.match(/"([0-9a-f]{64})"/i);
+      if (m) {
+        const candidate = m[1];
+        if (candidate !== _lastPushedToken) {
+          const fp = document.cookie.match(/fpstore=([a-f0-9]+)/i)?.[1] ?? '';
+          GM_xmlhttpRequest({
+            method: 'POST',
+            url: `http://localhost:${BOT_PORT}/api/v1/socket-token`,
+            headers: { 'Content-Type': 'application/json' },
+            data: JSON.stringify({ token: candidate, fingerprint: fp }),
+            onload(r) {
+              if (r.status === 200) {
+                _lastPushedToken = candidate;
+                console.log('[BTH] Token WS capturado via fetch ✓', candidate.slice(0, 12) + '…');
+              }
+            },
+            onerror() {},
+          });
+        }
+      }
+    } catch(e) {}
+    return resp;
+  };
+
   function pushTokenToBot() {
     try {
-      // Token em localStorage.settings.user.token (confirmado via DevTools)
-      const raw = localStorage.getItem('settings');
-      if (!raw) return;
-      const settings = JSON.parse(decodeURIComponent(raw));
-      const token = settings?.user?.token;
-      if (!token || token === _lastPushedToken) return;
-
-      // Fingerprint e cookie de sessão
       const fp = document.cookie.match(/fpstore=([a-f0-9]+)/i)?.[1] ?? '';
-      const atMatch = document.cookie.match(/\bat=([^;]+)/);
-      const atCookie = atMatch ? `at=${atMatch[1]}` : '';
 
-      GM_xmlhttpRequest({
-        method: 'POST',
-        url: `http://localhost:${BOT_PORT}/api/v1/socket-token`,
-        headers: { 'Content-Type': 'application/json' },
-        data: JSON.stringify({ token, fingerprint: fp, atCookie }),
-        onload(r) {
-          if (r.status === 200) {
-            _lastPushedToken = token;
-            console.log('[BTH] Token enviado ao bot local ✓', token.slice(0, 12) + '…');
+      // Tenta primeiro o token de 64 chars de qualquer campo de settings
+      const raw = localStorage.getItem('settings');
+      if (raw) {
+        const settings = JSON.parse(decodeURIComponent(raw));
+        // Coleta todos os valores hex de 64 chars do settings.user
+        const user = settings?.user ?? {};
+        const candidates = Object.values(user).filter(v =>
+          typeof v === 'string' && /^[0-9a-f]{64}$/i.test(v)
+        );
+        for (const token of candidates) {
+          if (token && token !== _lastPushedToken) {
+            GM_xmlhttpRequest({
+              method: 'POST',
+              url: `http://localhost:${BOT_PORT}/api/v1/socket-token`,
+              headers: { 'Content-Type': 'application/json' },
+              data: JSON.stringify({ token, fingerprint: fp }),
+              onload(r) {
+                if (r.status === 200) {
+                  _lastPushedToken = token;
+                  console.log('[BTH] Token enviado ao bot ✓', token.slice(0, 12) + '…');
+                }
+              },
+              onerror() {},
+            });
           }
-        },
-        onerror() {}, // bot offline — silencioso
-      });
+        }
+      }
     } catch (e) {}
   }
 
