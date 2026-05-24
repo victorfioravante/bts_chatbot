@@ -9,6 +9,7 @@ import RainHistory from "./pages/RainHistory";
 import Settings from "./pages/Settings";
 import Aprovacoes from "./pages/Aprovacoes";
 import Trivia from "./pages/Trivia";
+import RainIntel from "./pages/RainIntel";
 
 export default function App() {
   useSSE();
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="/aprovacoes" element={<Aprovacoes />} />
           <Route path="/trivia" element={<Trivia />} />
           <Route path="/rain" element={<RainHistory />} />
+          <Route path="/rain-intel" element={<RainIntel />} />
           <Route path="/settings" element={<Settings />} />
         </Routes>
       </main>

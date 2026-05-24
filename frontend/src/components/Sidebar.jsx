@@ -1,22 +1,24 @@
 import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard, MessageSquare, Zap, CloudRain,
-  Settings, Activity, ShieldCheck, Gamepad2,
+  Settings, Activity, ShieldCheck, Gamepad2, TrendingUp,
 } from "lucide-react";
 import { useStore } from "../store";
 
 export function Sidebar() {
-  const { connected, sseConnected, pendingMessages, triviaActive } = useStore();
+  const { connected, sseConnected, pendingMessages, triviaActive, rainIntel } = useStore();
   const pendingCount = pendingMessages.length;
+  const rainScore = rainIntel?.score ?? 5;
 
   const links = [
-    { to: "/",          icon: LayoutDashboard, label: "Dashboard" },
-    { to: "/monitor",   icon: MessageSquare,   label: "Monitor" },
-    { to: "/auto",      icon: Zap,             label: "Auto-Msgs" },
-    { to: "/aprovacoes",icon: ShieldCheck,     label: "Controle",       badge: pendingCount },
-    { to: "/trivia",    icon: Gamepad2,        label: "Trivia",         pulse: triviaActive },
-    { to: "/rain",      icon: CloudRain,       label: "Histórico Rain" },
-    { to: "/settings",  icon: Settings,        label: "Configurações" },
+    { to: "/",           icon: LayoutDashboard, label: "Dashboard" },
+    { to: "/monitor",    icon: MessageSquare,   label: "Monitor" },
+    { to: "/auto",       icon: Zap,             label: "Auto-Msgs" },
+    { to: "/aprovacoes", icon: ShieldCheck,     label: "Controle",       badge: pendingCount },
+    { to: "/trivia",     icon: Gamepad2,        label: "Trivia",         pulse: triviaActive },
+    { to: "/rain-intel", icon: TrendingUp,      label: "Inteligência",   pulse: rainScore > 50 },
+    { to: "/rain",       icon: CloudRain,       label: "Histórico Rain" },
+    { to: "/settings",   icon: Settings,        label: "Configurações" },
   ];
 
   return (

@@ -82,9 +82,12 @@ function parseTextRain(text, sourceChannel, username) {
     // Only accept known currencies to avoid false positives
     if (currency && !CURRENCIES.includes(currency)) continue;
 
+    const parsedUser = (g.user || username || "Chat Rain").trim();
+    const parsedInitiator = !["Chat Rain", "Drizzle Bot", "Drizzle"].includes(parsedUser) ? parsedUser : null;
     return {
       type: "system-rain",
-      username: (g.user || username || "Chat Rain").trim(),
+      username: parsedUser,
+      initiator: parsedInitiator,
       currency: currency || "btc",
       amount: parseFloat(g.amount || 0),
       recipients: parseInt(g.count || 0, 10) || undefined,
@@ -97,16 +100,32 @@ function parseTextRain(text, sourceChannel, username) {
   return null;
 }
 
+function extractInitiator(text) {
+  if (!text) return null;
+  const clean = text.replace(/<[^>]+>/g, " ").trim();
+  let m = clean.match(/^(\w+)\s+has\s+rained?/i);
+  if (m) return m[1];
+  m = clean.match(/rain\s+of\s+[\d.]+\s+\w+\s+by\s+(\w+)/i);
+  if (m) return m[1];
+  m = clean.match(/^(\w+)\s+started\s+a\s+rain/i);
+  if (m) return m[1];
+  return null;
+}
+
 function buildRainEvent(data) {
   // Explicit rain type event
   if (data.type === "rain") {
+    // Tenta extrair o usuário humano que iniciou o rain
+    const comment = data.comment || data.message || "";
+    const initiator = extractInitiator(comment) || data.initiatedBy || null;
     return {
       type: "rain",
       username: data.username || "Chat Rain",
+      initiator: initiator && !["Chat Rain", "Drizzle Bot", "Drizzle"].includes(initiator) ? initiator : null,
       currency: data.currency || "btc",
       amount: data.amount || 0,
       channel: data.channel || "system",
-      comment: data.comment || "",
+      comment,
       level: data.level,
       timestamp: data.timestamp || Math.floor(Date.now() / 1000),
       raw: data,

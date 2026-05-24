@@ -3,6 +3,7 @@ const router = express.Router();
 const socketClient = require("../socket/client");
 const events = require("../socket/events");
 const rainMonitor = require("../modules/rainMonitor");
+const rainIntel = require("../modules/rainIntelligence");
 const autoMessage = require("../modules/autoMessage");
 const pendingQueue = require("../modules/pendingQueue");
 const triviaDetector = require("../modules/triviaDetector");
@@ -55,6 +56,30 @@ router.get("/rain/history", (req, res) => {
 
 router.get("/rain/stats", (req, res) => {
   res.json(rainMonitor.getStats());
+});
+
+// ─── Rain Intelligence ────────────────────────────────────────────────────────
+
+router.get("/rain/intel", (req, res) => {
+  res.json({
+    score:       rainIntel.getScore(),
+    senders:     rainIntel.getSenders(),
+    hourPattern: rainIntel.getHourPattern(),
+  });
+});
+
+router.post("/rain/senders", (req, res) => {
+  const { username } = req.body || {};
+  if (!username || typeof username !== "string")
+    return res.status(400).json({ error: "username obrigatório" });
+  const ok = rainIntel.addSender(username.trim());
+  res.status(ok ? 201 : 200).json({ ok, username: username.trim() });
+});
+
+router.delete("/rain/senders/:username", (req, res) => {
+  const ok = rainIntel.removeSender(req.params.username);
+  if (!ok) return res.status(404).json({ error: "Sender não encontrado" });
+  res.json({ ok });
 });
 
 router.get("/automsg/stats", (req, res) => {

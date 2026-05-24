@@ -61,5 +61,8 @@ eventBus.on("pendingMessage", (d) => broadcast("pendingMessage", d));
 eventBus.on("triviaEvent", (d) => broadcast("triviaEvent", d));
 eventBus.on("triviaWordAdded", (d) => broadcast("triviaWordAdded", d));
 eventBus.on("triviaThemeChanged", (d) => broadcast("triviaThemeChanged", d));
+eventBus.on("rainActivity", (d) => broadcast("rainActivity", d));
+eventBus.on("bet",          (d) => broadcast("bet", d));
+eventBus.on("betResolved",  (d) => broadcast("betResolved", d));
 
 module.exports = { sseMiddleware, broadcast };

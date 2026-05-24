@@ -15,6 +15,8 @@ export const useStore = create((set, get) => ({
   pendingMessages: [],
   triviaEvents: [],
   triviaActive: false,
+  rainActivity: [],
+  rainIntel: { score: 5, senders: [], hourPattern: new Array(24).fill(0) },
 
   setConnected: (v) => set({ connected: v }),
   setUser: (u) => set({ user: u }),
@@ -56,6 +58,13 @@ export const useStore = create((set, get) => ({
       triviaEvents: [event, ...s.triviaEvents].slice(0, 50),
       triviaActive: event.type === "hint",
     })),
+
+  addRainActivity: (evt) =>
+    set((s) => ({
+      rainActivity: [{ ...evt, ts: Date.now() }, ...s.rainActivity].slice(0, 30),
+    })),
+
+  setRainIntel: (data) => set({ rainIntel: data }),
 
   handlePendingEvent: (event) =>
     set((s) => {

@@ -421,6 +421,25 @@ function getSocketCookie() {
 async function getSocketToken(forceRefresh = false) {
   const hasCredentials = process.env.BITSLER_USERNAME && process.env.BITSLER_PASSWORD;
 
+  // 0. Playwright headless — abre a Bitsler real e extrai token + fingerprint (se PLAYWRIGHT_AUTH=true)
+  if (process.env.PLAYWRIGHT_AUTH === "true") {
+    try {
+      logger.info("[Auth] Adquirindo token via Playwright (Tier 0)...");
+      const { acquireViaPlaywright } = require("./modules/browserAuth");
+      const { token, fp } = await acquireViaPlaywright();
+      if (token) {
+        if (fp) {
+          process.env.BITSLER_FINGERPRINT = fp;
+          logger.info(`[Auth] Fingerprint atualizado via Playwright: ${fp.slice(0, 8)}...`);
+        }
+        logger.info("[Auth] Token adquirido via Playwright (source: playwright).");
+        return token;
+      }
+    } catch (err) {
+      logger.warn(`[Auth] Playwright falhou, tentando próxima camada: ${err.message}`);
+    }
+  }
+
   // 1. Token do browser via Tampermonkey — sessão real do browser, aceita pelo chat WS
   if (!forceRefresh && _browserToken && Date.now() - _browserTokenAt < BROWSER_TOKEN_TTL_MS) {
     logger.info("[Auth] Usando token do browser (Tampermonkey).");

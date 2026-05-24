@@ -7,6 +7,8 @@ const logger = require("./modules/logger");
 const socketClient = require("./socket/client");
 const events = require("./socket/events");
 const autoMessage = require("./modules/autoMessage");
+const rainIntelligence = require("./modules/rainIntelligence");
+const betTracker = require("./modules/betTracker");
 const routes = require("./api/routes");
 
 const app = express();
@@ -76,4 +78,8 @@ app.listen(PORT, () => {
 
   // Start auto-message engine
   autoMessage.startAll();
+
+  // Rain Intelligence + Bet Tracker
+  rainIntelligence.init();
+  betTracker.init();
 });

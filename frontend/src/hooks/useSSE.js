@@ -14,6 +14,8 @@ export function useSSE() {
     handlePendingEvent,
     setPendingMessages,
     addTriviaEvent,
+    addRainActivity,
+    setRainIntel,
   } = useStore();
 
   const esRef = useRef(null);
@@ -26,7 +28,6 @@ export function useSSE() {
 
       es.addEventListener("open", () => {
         setSseConnected(true);
-        // Carrega histórico de mensagens e fila pendente de uma vez
         fetch(`${backendUrl}/api/v1/history?limit=150`)
           .then((r) => r.json())
           .then(prependHistory)
@@ -34,6 +35,10 @@ export function useSSE() {
         fetch(`${backendUrl}/api/v1/pending`)
           .then((r) => r.json())
           .then(setPendingMessages)
+          .catch(() => {});
+        fetch(`${backendUrl}/api/v1/rain/intel`)
+          .then((r) => r.json())
+          .then(setRainIntel)
           .catch(() => {});
       });
 
@@ -86,6 +91,19 @@ export function useSSE() {
             body: `[${data.item.channel}] ${data.item.message}`,
           });
         }
+      });
+
+      es.addEventListener("rainActivity", (e) => {
+        addRainActivity(JSON.parse(e.data));
+        // Atualiza score via polling leve
+        fetch(`${backendUrl}/api/v1/rain/intel`)
+          .then((r) => r.json())
+          .then(setRainIntel)
+          .catch(() => {});
+      });
+
+      es.addEventListener("betResolved", (e) => {
+        addRainActivity({ ...JSON.parse(e.data), isBet: true });
       });
 
       es.onerror = () => {
