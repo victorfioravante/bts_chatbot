@@ -97,7 +97,7 @@ router.post("/disconnect", (req, res) => {
 router.post("/join", (req, res) => {
   const { channel } = req.body;
   if (!channel) return res.status(400).json({ error: "channel required" });
-  const ok = socketClient.emit("join", { channel });
+  const ok = socketClient.emit("join", { channelName: channel });
   res.json({ ok });
 });
 

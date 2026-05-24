@@ -106,7 +106,7 @@ async function connect() {
   // Polling primeiro (HTTP) para enviar auth headers — depois upgrade para WS.
   // extraHeaders no nível raiz garante envio em ambos os transports no Node.js.
   // Namespace configurável — padrão vazio (root), tente /chat se root falhar
-  const namespace = process.env.WS_NAMESPACE || "/chat";
+  const namespace = process.env.WS_NAMESPACE || "";
   const serverUrl = `https://stream.bitsler.com${namespace}`;
   logger.info(`[WS] Conectando namespace: "${namespace || "/"}" em ${serverUrl}`);
 
@@ -166,9 +166,10 @@ async function connect() {
     socket.emit("fp", fingerprint);
 
     // Entrar nos canais configurados
+    // Bitsler usa channelName (não channel) no payload — igual ao evento say
     const channels = cfg.channels.autoJoin || ["en", "br", "system"];
     channels.forEach((ch) => {
-      socket.emit("join", { channel: ch });
+      socket.emit("join", { channelName: ch });
       logger.info(`Joined canal: ${ch}`);
     });
   });
