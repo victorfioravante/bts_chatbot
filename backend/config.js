@@ -55,7 +55,7 @@ function getDefaults() {
     },
     channels: { autoJoin: ["en", "br", "system"], monitor: ["system", "en", "br"] },
     rainMonitor: { enabled: true, sound: true, nativeNotification: true, webhookUrl: "" },
-    autoMessage: { enabled: true, approvalMode: false, profiles: [] },
+    autoMessage: { enabled: false, approvalMode: true, profiles: [] },
     ui: { theme: "dark", language: "pt-BR", historyLimit: 200 },
   };
 }

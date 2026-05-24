@@ -15,7 +15,8 @@
     "webhookUrl": ""
   },
   "autoMessage": {
-    "enabled": true,
+    "enabled": false,
+    "approvalMode": true,
     "profiles": [
       {
         "id": "rain-en",
@@ -128,7 +129,7 @@
         ],
         "intervaloMin": 480,
         "intervaloMax": 520,
-        "ativo": true,
+        "ativo": false,
         "horarioInicio": "00:00",
         "horarioFim": "23:59",
         "pausarDuranteRain": false
@@ -249,7 +250,7 @@
         ],
         "intervaloMin": 480,
         "intervaloMax": 520,
-        "ativo": true,
+        "ativo": false,
         "horarioInicio": "00:00",
         "horarioFim": "23:59",
         "pausarDuranteRain": false
