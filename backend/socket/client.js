@@ -27,7 +27,7 @@ function buildParser() {
 function probePollingEndpoint(socketToken, fingerprint) {
   return new Promise((resolve) => {
     const path = `/chat/?EIO=4&transport=polling&t=${Date.now()}`;
-    const hostname = process.env.WS_HOST || "www.bitsler.com";
+    const hostname = process.env.WS_HOST || "ws.bitsler.com";
     const req = https.request(
       {
         hostname,
@@ -107,7 +107,7 @@ async function connect() {
   // Polling primeiro (HTTP) para enviar auth headers — depois upgrade para WS.
   // extraHeaders no nível raiz garante envio em ambos os transports no Node.js.
   // Namespace configurável — padrão vazio (root), tente /chat se root falhar
-  const wsHost = process.env.WS_HOST || "bitsler.com";
+  const wsHost = process.env.WS_HOST || "ws.bitsler.com";
   const namespace = process.env.WS_NAMESPACE || "";
   const serverUrl = `https://${wsHost}${namespace}`;
   logger.info(`[WS] Conectando: ${serverUrl} path=/chat`);
