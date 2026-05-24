@@ -55,8 +55,6 @@ function probePollingEndpoint(socketToken, fingerprint) {
   });
 }
 
-const MsgpackParser = { Encoder: MsgpackEncoder, Decoder: MsgpackDecoder };
-
 let socket = null;
 let reconnectAttempts = 0;
 let reconnectTimer = null;
