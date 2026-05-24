@@ -1,24 +1,33 @@
 {
+  "casino_terms": [
+    "Autobet", "Baccarat", "Bankroll", "Betting", "Bets", "Bingo", "BlackJack", "Blast", "Block", "Bluff",
+    "Bonus", "Bonushunt", "Boom", "Cards", "Cashier", "Chance", "Chatbot", "Chest", "Chips", "Contest",
+    "Coupon", "Craps", "Croupier", "Dealer", "Dice", "Esports", "Gamble", "Game", "Gaming", "Guest",
+    "Keno", "Luck", "Parlay", "Payline", "Payout", "Player", "Plinko", "Pool", "Prize", "Profit",
+    "Promotions", "Rain", "Rakeback", "Risk", "Rollhunt", "Roulette", "Seed", "Seeds", "Slot", "Slots",
+    "Spin", "Spins", "Sport", "Stack", "Stats", "Table", "Trivia", "Twist", "Wager"
+  ],
   "crypto_terms": [
-    "ABI", "API", "APR", "APY", "Asic", "Asset", "Atomic", "Altcoin", "Analytics", "Algorithm",
-    "Bot", "BTC", "Burn", "Block", "Bridge", "Bitcoin", "Blockchain",
-    "CEX", "Coin", "Chain", "Custody", "Currency", "Consensus", "Cryptography", "Cryptocurrency", "Cryptoeconomics",
-    "DAO", "Data", "DApp", "DeFi", "Dealer", "Demand", "Digital", "Deposit", "Database", "Distributed", "Decentralization",
-    "Escrow", "Ethereum", "Exchange", "Encryption",
-    "Fee", "Fiat", "Fork", "Fees", "Forum", "Faucet", "Finance", "Finality",
-    "Gas", "Hash", "Hodl", "Hold", "Halving", "Hashrate", "Hyperledger",
-    "ICO", "Immutable", "Inflation", "Investing", "Insurance", "Interchain", "Interoperability",
+    "Account", "Address", "Airdrop", "Algorithm", "Altcoin", "AML", "Anonymity",
+    "Balance", "Block", "Blockchain", "Burn",
+    "Chain", "Chainlink", "Consensus", "Currency", "Cryptocurrency", "Cryptoeconomics", "Cryptography", "Custody",
+    "DAO", "DApp", "Data", "Database", "Decentralization", "DeFi", "Demand", "Deposit", "Digital", "Distributed",
+    "Encryption", "Escrow", "Ethereum", "Exchange",
+    "Faucet", "Fee", "Fees", "Fiat", "Finality", "Finance", "Fork", "Forum",
+    "Gas",
+    "Halving", "Hash", "Hashrate", "Hodl", "Hold",
+    "ICO", "Immutable", "Inflation", "Insurance", "Interchain", "Interoperability", "Investing",
     "Key", "KYC",
     "Ledger", "Liquidity",
-    "Mint", "Miner", "Mining", "Market", "Mainnet", "Multisig", "Metaverse",
-    "NFT", "Node", "Nonce", "Nitro", "Network",
+    "Mainnet", "Market", "Merkle", "Metaverse", "Miner", "Mining", "Mint", "Multisig",
+    "Network", "NFT", "Nitro", "Node", "Nonce",
     "Odds", "Oracle",
     "Plasma", "Protocol",
     "Reward", "Rewards",
-    "Satoshi", "Staking", "Storage", "Support", "Sharding", "Security", "Solidity", "Strategy", "Sidechain", "Stablecoin", "Scalability", "Supply",
-    "Table", "Token", "Tokens", "Testnet", "Trading", "Tracking", "Transfer", "Timestamp", "Transaction", "Transactions", "Tokenization",
-    "Validator", "Validation", "Volatility",
-    "Whale", "Wallet", "Withdraw", "Whitepaper", "Withdrawal", "Withdrawing"
+    "Satoshi", "Scalability", "Security", "Sharding", "Sidechain", "Solidity", "Stablecoin", "Staking", "Storage", "Strategy", "Supply", "Support",
+    "Timestamp", "Token", "Tokenization", "Tokens", "Trading", "Tracking", "Transaction", "Transactions", "Transfer",
+    "Validation", "Validator", "Volatility",
+    "Wallet", "Whale", "Whitepaper", "Withdraw", "Withdrawal", "Withdrawing"
   ],
   "top100_coins": [
     "Bitcoin", "Ethereum", "Tether", "BNB", "Solana", "USDC", "XRP", "Dogecoin", "Cardano", "Avalanche",
@@ -44,15 +53,5 @@
     "Provably", "Fair", "Seed", "Hash", "Nonce", "Verify", "Result", "Win", "Lose", "Profit",
     "Autobet", "Strategy", "Martingale", "Fibonacci", "Paroli", "Dalembert",
     "Support", "Chat", "Moderator", "Admin", "Ban", "Mute", "Warning"
-  ],
-  "casino_terms": [
-    "Ace", "Ante", "Baccarat", "Banker", "Bankroll", "Bet", "Blackjack", "Blind", "Bluff", "Bonus",
-    "Bust", "Call", "Card", "Casino", "Check", "Chip", "Croupier", "Cut", "Deal", "Dealer",
-    "Deck", "Double", "Down", "Draw", "Edge", "Fold", "Flush", "Full", "House", "Gamble",
-    "Hand", "Hit", "Hold", "Hole", "Insurance", "Jackpot", "Joker", "Keno", "Limit", "Loose",
-    "Martingale", "Match", "Maximum", "Minimum", "Natural", "Odds", "Pair", "Pass", "Payout", "Player",
-    "Poker", "Pot", "Push", "Raise", "Rake", "Random", "River", "Roll", "Roulette", "Royal",
-    "Shoe", "Shuffle", "Slot", "Spin", "Split", "Stake", "Stand", "Straight", "Street", "Table",
-    "Tie", "Token", "Trip", "Turn", "Variance", "Wager", "Wild", "Win", "Zero", "Flush"
   ]
 }

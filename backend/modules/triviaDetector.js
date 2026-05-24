@@ -9,6 +9,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const https = require("https");
 const eventBus = require("../eventBus");
 const logger = require("./logger");
 
@@ -108,6 +109,14 @@ function matchWords(hint, theme) {
   });
 }
 
+// ─── Trivia enable/disable state ────────────────────────────────────────────
+
+let triviaEnabled = false;
+
+function enableTrivia() { triviaEnabled = true; logger.info("[Trivia] Ativado"); }
+function disableTrivia() { triviaEnabled = false; logger.info("[Trivia] Desativado"); }
+function isTriviaEnabled() { return triviaEnabled; }
+
 // ─── Active game state ───────────────────────────────────────────────────────
 
 let activeGame = null;
@@ -139,6 +148,7 @@ const GAME_OVER_RE = /game\s*over/i;
 const ANSWER_RE = /answer[*:\s]+([a-zA-Z]+)/i;
 
 function analyze(msg) {
+  if (!triviaEnabled) return;
   const text = (msg.message || msg.comment || "").trim();
   if (!text) return;
 
@@ -187,8 +197,48 @@ function analyze(msg) {
   }
 }
 
+// ─── CoinMarketCap Top 100 fetch ─────────────────────────────────────────────
+
+function fetchTop100Coins() {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: "api.coinmarketcap.com",
+      path: "/data-api/v3/cryptocurrency/listing?start=1&limit=100&sortBy=market_cap&sortType=desc&convert=USD&cryptoType=all&tagType=all&audited=false&aux=name",
+      method: "GET",
+      headers: {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "application/json",
+      },
+    };
+    const req = https.request(options, (res) => {
+      let data = "";
+      res.on("data", (c) => (data += c));
+      res.on("end", () => {
+        try {
+          const json = JSON.parse(data);
+          const coins = (json?.data?.cryptoCurrencyList || [])
+            .map((c) => c.name)
+            .filter(Boolean);
+          if (coins.length === 0) return reject(new Error("No coins returned"));
+          const current = loadData();
+          current.top100_coins = [...new Set(coins)].sort((a, b) => a.localeCompare(b));
+          saveData(current);
+          logger.info(`[Trivia] Top 100 atualizado: ${coins.length} moedas`);
+          resolve(coins);
+        } catch (e) {
+          reject(e);
+        }
+      });
+    });
+    req.on("error", reject);
+    req.end();
+  });
+}
+
 module.exports = {
   analyze, addWord, removeWord, loadWords, loadData, saveData,
   parseHint, matchWords, getActiveGame, setTheme, getTheme,
+  enableTrivia, disableTrivia, isTriviaEnabled,
+  fetchTop100Coins,
   THEMES,
 };

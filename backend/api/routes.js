@@ -256,4 +256,27 @@ router.post("/trivia/match", (req, res) => {
   res.json({ hint: parsed, matches });
 });
 
+router.get("/trivia/status", (req, res) => {
+  res.json({ enabled: triviaDetector.isTriviaEnabled() });
+});
+
+router.post("/trivia/enable", (req, res) => {
+  triviaDetector.enableTrivia();
+  res.json({ enabled: true });
+});
+
+router.post("/trivia/disable", (req, res) => {
+  triviaDetector.disableTrivia();
+  res.json({ enabled: false });
+});
+
+router.post("/trivia/top100/refresh", async (req, res) => {
+  try {
+    const coins = await triviaDetector.fetchTop100Coins();
+    res.json({ ok: true, count: coins.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
