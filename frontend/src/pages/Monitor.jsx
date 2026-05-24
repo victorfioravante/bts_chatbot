@@ -370,16 +370,16 @@ export default function Monitor() {
             const isRain = msg.type === "rain" || ["Chat Rain", "Drizzle Bot", "Drizzle"].includes(msg.username);
             const isTrivia = /guess the crypto/i.test(text) || /game over/i.test(text);
             const myUsername = user?.username || "";
-            const isMention = myUsername && new RegExp(`@${myUsername}`, "i").test(text);
+            const mentionRe = myUsername ? new RegExp(`@${myUsername}`, "i") : null;
+            const isMention = mentionRe ? mentionRe.test(text) : false;
 
-            // Highlight @myUsername occurrences in text
+            // Split text around @myUsername, wrap matches — creates fresh regex each call
             const renderText = (raw) => {
               if (!isMention || !myUsername) return raw;
-              const regex = new RegExp(`(@${myUsername})`, "gi");
-              const parts = raw.split(regex);
+              const parts = raw.split(new RegExp(`(@${myUsername})`, "gi"));
               return parts.map((part, idx) =>
-                regex.test(part)
-                  ? <span key={idx} className="bg-yellow-500 text-black font-bold px-0.5 rounded">{part}</span>
+                new RegExp(`^@${myUsername}$`, "i").test(part)
+                  ? <span key={idx} className="text-indigo-200 font-bold bg-indigo-800/60 px-0.5 rounded">{part}</span>
                   : part
               );
             };
@@ -387,9 +387,9 @@ export default function Monitor() {
             return (
               <div
                 key={i}
-                className={`flex gap-2 px-2 py-0.5 rounded ${
+                className={`flex gap-2 px-2 py-0.5 rounded transition-colors ${
                   isMention
-                    ? "bg-yellow-950 border border-yellow-700"
+                    ? "bg-indigo-950/70 border-l-2 border-indigo-500 pl-1.5"
                     : isRain
                     ? "bg-blue-950 border border-blue-800"
                     : isTrivia
@@ -409,7 +409,7 @@ export default function Monitor() {
                 >
                   {msg.username || "system"}:
                 </span>
-                <span className={`break-all ${isMention ? "text-yellow-100" : isRain ? "text-blue-200 font-semibold" : isTrivia ? "text-amber-200" : "text-gray-200"}`}>
+                <span className={`break-all ${isRain ? "text-blue-200 font-semibold" : isTrivia ? "text-amber-200" : "text-gray-200"}`}>
                   {renderText(text)}
                 </span>
               </div>
