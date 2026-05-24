@@ -54,8 +54,11 @@ export default function Dashboard() {
   const last = stats.lastRain || lastRain;
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+    <div className="px-8 py-6 space-y-6">
+      <div className="border-b border-border pb-4">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Dashboard</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">Status em tempo real do bot</p>
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <StatCard
@@ -98,20 +101,27 @@ export default function Dashboard() {
       </div>
 
       {/* Recent rains */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
-        <h2 className="text-sm font-semibold text-gray-400 mb-3">Últimos Rains</h2>
+      <div className="bg-card border border-border rounded-xl p-5">
+        <h2 className="text-xs uppercase tracking-wide font-semibold text-muted-foreground mb-3">
+          Últimos Rains
+        </h2>
         {(stats.history || []).length === 0 ? (
-          <p className="text-gray-600 text-sm">Nenhum rain detectado ainda.</p>
+          <p className="text-muted-foreground text-sm">Nenhum rain detectado ainda.</p>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {(stats.history || []).slice().reverse().map((r, i) => (
-              <div key={i} className="flex items-center justify-between text-sm bg-gray-800 rounded-lg px-3 py-2">
+              <div
+                key={i}
+                className="flex items-center justify-between text-sm bg-muted rounded-lg px-3 py-2 hover:bg-accent transition-colors"
+              >
                 <div className="flex items-center gap-2">
-                  <CloudRain className="w-4 h-4 text-blue-400" />
-                  <span className="text-white">{r.currency?.toUpperCase()} {r.amount}</span>
-                  <span className="text-gray-400">— {r.channel}</span>
+                  <CloudRain className="w-4 h-4 text-info" />
+                  <span className="text-foreground font-medium">
+                    {r.currency?.toUpperCase()} {r.amount}
+                  </span>
+                  <span className="text-muted-foreground">— {r.channel}</span>
                 </div>
-                <span className="text-gray-500 text-xs">{timeAgo(r.timestamp)}</span>
+                <span className="font-mono text-xs text-muted-foreground">{timeAgo(r.timestamp)}</span>
               </div>
             ))}
           </div>

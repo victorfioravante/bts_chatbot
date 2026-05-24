@@ -2,6 +2,7 @@ import { useRef, useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "../store";
 import { Settings2, Send, Gamepad2, Trophy, RefreshCw } from "lucide-react";
+import { ch } from "../lib/channelStyles";
 
 const API = "/api/v1";
 
@@ -27,24 +28,23 @@ function TriviaBanner({ triviaEvents }) {
 
   if (last.type === "gameOver") {
     return (
-      <div className="bg-gray-900 border border-gray-700 rounded-xl px-4 py-2 flex items-center gap-3 text-sm">
-        <Trophy className="w-4 h-4 text-yellow-400 shrink-0" />
-        <span className="text-gray-400">Jogo encerrado —</span>
-        <span className="text-yellow-300 font-mono font-bold">{last.answer}</span>
-        {last.added && <span className="text-green-400 text-xs">✓ salva</span>}
+      <div className="bg-card border border-border rounded-xl px-4 py-2.5 flex items-center gap-3 text-sm">
+        <Trophy className="w-4 h-4 text-warning shrink-0" />
+        <span className="text-muted-foreground">Jogo encerrado —</span>
+        <span className="font-mono font-bold text-warning">{last.answer}</span>
+        {last.added && <span className="text-success text-xs ml-1">✓ salva</span>}
       </div>
     );
   }
 
   return (
-    <div className="bg-amber-950 border border-amber-700 rounded-xl p-3 space-y-2">
+    <div className="bg-warning/5 border border-warning/30 rounded-xl p-3 space-y-2">
       <div className="flex items-center gap-2">
-        <Gamepad2 className="w-4 h-4 text-amber-400 shrink-0" />
-        <span className="font-mono text-lg text-white tracking-widest">{last.hintRaw}</span>
-        <span className="ml-auto text-xs text-amber-600">canal: {last.channel}</span>
+        <Gamepad2 className="w-4 h-4 text-warning shrink-0" />
+        <span className="font-mono text-lg text-foreground tracking-widest">{last.hintRaw}</span>
+        <span className="ml-auto text-xs text-muted-foreground font-mono">canal: {last.channel}</span>
       </div>
 
-      {/* Sugestões com botão de envio */}
       {last.suggestions?.length > 0 ? (
         <div className="flex flex-wrap gap-2">
           {last.suggestions.map((w) => (
@@ -53,8 +53,10 @@ function TriviaBanner({ triviaEvents }) {
               onClick={() => sendAnswer(w, last.channel)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-mono font-bold border transition-colors ${
                 sent?.word === w
-                  ? sent.ok ? "bg-green-800 border-green-600 text-green-200" : "bg-red-900 border-red-700 text-red-200"
-                  : "bg-amber-900 border-amber-700 text-amber-100 hover:bg-amber-800"
+                  ? sent.ok
+                    ? "bg-success/10 border-success/40 text-success"
+                    : "bg-destructive/10 border-destructive/40 text-destructive"
+                  : "bg-warning/10 border-warning/30 text-warning hover:bg-warning/20"
               }`}
             >
               {sent?.word === w ? (sent.ok ? "✓ Enviado" : "✗ Falhou") : (
@@ -64,10 +66,9 @@ function TriviaBanner({ triviaEvents }) {
           ))}
         </div>
       ) : (
-        <p className="text-xs text-amber-600">Sem sugestões no banco para esse padrão.</p>
+        <p className="text-xs text-muted-foreground">Sem sugestões no banco para esse padrão.</p>
       )}
 
-      {/* Resposta manual */}
       <div className="flex gap-2">
         <input
           type="text"
@@ -80,11 +81,11 @@ function TriviaBanner({ triviaEvents }) {
             }
           }}
           placeholder="Resposta manual (Enter para enviar)..."
-          className="flex-1 bg-gray-900 border border-amber-800 rounded-lg px-3 py-1.5 text-sm text-white placeholder-amber-900 font-mono"
+          className="flex-1 h-9 bg-muted border border-warning/30 rounded-lg px-3 text-sm text-foreground placeholder-muted-foreground font-mono focus:outline-none focus:border-warning/60"
         />
         <button
-          onClick={() => { if (customAnswer.trim()) { sendAnswer(customAnswer.trim(), last.channel); setCustomAnswer(""); }}}
-          className="px-3 py-1.5 bg-amber-700 hover:bg-amber-600 text-white rounded-lg text-sm flex items-center gap-1"
+          onClick={() => { if (customAnswer.trim()) { sendAnswer(customAnswer.trim(), last.channel); setCustomAnswer(""); } }}
+          className="h-9 px-3 bg-warning/10 hover:bg-warning/20 border border-warning/30 text-warning rounded-lg text-sm flex items-center gap-1.5 transition-colors"
         >
           <Send className="w-3 h-3" /> Enviar
         </button>
@@ -94,27 +95,6 @@ function TriviaBanner({ triviaEvents }) {
 }
 
 const ALL_CHANNELS = ["en", "br", "fr", "in", "id", "ph", "ru", "es", "pk", "rs", "system"];
-
-const CHANNEL_COLORS = {
-  en: "text-blue-400",
-  br: "text-green-400",
-  system: "text-yellow-400",
-  fr: "text-purple-400",
-  in: "text-orange-400",
-  id: "text-pink-400",
-  ph: "text-cyan-400",
-  ru: "text-red-400",
-  es: "text-lime-400",
-  pk: "text-teal-400",
-  rs: "text-violet-400",
-};
-
-const CHANNEL_BADGE = {
-  en: "bg-blue-900 text-blue-200 border-blue-700",
-  br: "bg-green-900 text-green-200 border-green-700",
-  fr: "bg-purple-900 text-purple-200 border-purple-700",
-  system: "bg-yellow-900 text-yellow-200 border-yellow-700",
-};
 
 export default function Monitor() {
   const { messages, triviaEvents, user } = useStore();
@@ -126,10 +106,9 @@ export default function Monitor() {
   const bottomRef = useRef(null);
   const chatInputRef = useRef(null);
 
-  // Chat input state
   const [chatMsg, setChatMsg] = useState("");
   const [chatChannel, setChatChannel] = useState(null);
-  const [chatFeedback, setChatFeedback] = useState(null); // { ok, text }
+  const [chatFeedback, setChatFeedback] = useState(null);
   const [top100Feedback, setTop100Feedback] = useState(null);
 
   const { data: cfg } = useQuery({
@@ -140,14 +119,12 @@ export default function Monitor() {
   const activeChannels = new Set(cfg?.channels?.autoJoin || ["en", "br", "system"]);
   const activeChannelList = [...activeChannels].filter((c) => c !== "system").sort();
 
-  // Default chatChannel to first active (non-system) channel when config loads
   useEffect(() => {
     if (!chatChannel && activeChannelList.length > 0) {
       setChatChannel(activeChannelList[0]);
     }
   }, [activeChannelList.join(",")]); // eslint-disable-line
 
-  // Trivia toggle query
   const { data: triviaStatus } = useQuery({
     queryKey: ["trivia-status"],
     queryFn: () => fetch("/api/v1/trivia/status").then((r) => r.json()),
@@ -162,12 +139,12 @@ export default function Monitor() {
 
   const sendChatMsg = () => {
     const msg = chatMsg.trim();
-    const ch = chatChannel || activeChannelList[0] || "en";
-    if (!msg || !ch) return;
+    const channel = chatChannel || activeChannelList[0] || "en";
+    if (!msg || !channel) return;
     fetch("/api/v1/say", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ channel: ch, message: msg }),
+      body: JSON.stringify({ channel, message: msg }),
     })
       .then((r) => r.json())
       .then((d) => {
@@ -186,11 +163,7 @@ export default function Monitor() {
     fetch("/api/v1/trivia/top100/refresh", { method: "POST" })
       .then((r) => r.json())
       .then((d) => {
-        if (d.ok) {
-          setTop100Feedback({ ok: true, text: `✓ ${d.count} moedas` });
-        } else {
-          setTop100Feedback({ ok: false, text: d.error || "Erro" });
-        }
+        setTop100Feedback(d.ok ? { ok: true, text: `✓ ${d.count} moedas` } : { ok: false, text: d.error || "Erro" });
         setTimeout(() => setTop100Feedback(null), 4000);
       })
       .catch(() => {
@@ -209,20 +182,20 @@ export default function Monitor() {
     onSuccess: () => qc.invalidateQueries(["config"]),
   });
 
-  const joinChannel = (ch) => {
+  const joinChannel = (channel) => {
     fetch("/api/v1/join", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ channel: ch }),
+      body: JSON.stringify({ channel }),
     });
   };
 
-  const toggleChannel = (ch) => {
-    const updated = activeChannels.has(ch)
-      ? [...activeChannels].filter((c) => c !== ch)
-      : [...activeChannels, ch];
+  const toggleChannel = (channel) => {
+    const updated = activeChannels.has(channel)
+      ? [...activeChannels].filter((c) => c !== channel)
+      : [...activeChannels, channel];
     saveChannels.mutate(updated);
-    if (!activeChannels.has(ch)) joinChannel(ch);
+    if (!activeChannels.has(channel)) joinChannel(channel);
   };
 
   useEffect(() => {
@@ -241,32 +214,34 @@ export default function Monitor() {
   });
 
   return (
-    <div className="flex flex-col h-full p-6 gap-3">
+    <div className="flex flex-col h-full px-6 py-5 gap-3">
       {/* Header */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-2xl font-bold text-white">Monitor de Chat</h1>
+      <div className="flex items-center gap-3 flex-wrap border-b border-border pb-4">
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Monitor de Chat</h1>
         <div className="flex gap-2 ml-auto items-center flex-wrap">
           <input
-            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-500 w-44"
+            className="h-9 bg-input border border-border rounded-lg px-3 text-sm text-foreground placeholder-muted-foreground w-44 focus:outline-none focus:border-primary"
             placeholder="Filtrar mensagem..."
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />
-          <label className="flex items-center gap-1.5 text-sm text-gray-400 cursor-pointer">
+          <label className="flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer select-none">
             <input
               type="checkbox"
               checked={autoScroll}
               onChange={(e) => setAutoScroll(e.target.checked)}
+              className="accent-primary"
             />
             Auto-scroll
           </label>
+
           {/* Trivia toggle */}
           <button
             onClick={() => triviaToggle.mutate(!triviaStatus?.enabled)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+            className={`h-9 flex items-center gap-1.5 px-3 rounded-lg text-sm font-medium border transition-colors ${
               triviaStatus?.enabled
-                ? "bg-green-800 border-green-600 text-green-200 hover:bg-green-700"
-                : "bg-gray-800 border-gray-700 text-gray-400 hover:text-white"
+                ? "border-success/50 bg-success/10 text-success hover:bg-success/20"
+                : "border-border bg-input text-muted-foreground hover:bg-accent hover:text-foreground"
             }`}
             title={triviaStatus?.enabled ? "Trivia ativo — clique para desativar" : "Trivia inativo — clique para ativar"}
           >
@@ -277,25 +252,25 @@ export default function Monitor() {
           <button
             onClick={refreshTop100}
             disabled={top100Feedback?.loading}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+            className={`h-9 flex items-center gap-1.5 px-3 rounded-lg text-sm font-medium border transition-colors ${
               top100Feedback?.ok === true
-                ? "bg-green-800 border-green-600 text-green-200"
+                ? "border-success/50 bg-success/10 text-success"
                 : top100Feedback?.ok === false
-                ? "bg-red-900 border-red-700 text-red-200"
-                : "bg-gray-800 border-gray-700 text-gray-400 hover:text-white"
+                ? "border-destructive/50 bg-destructive/10 text-destructive"
+                : "border-border bg-input text-muted-foreground hover:bg-accent hover:text-foreground"
             }`}
             title="Atualizar Top 100 moedas do CoinMarketCap"
           >
-            <RefreshCw className={`w-3 h-3 ${top100Feedback?.loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${top100Feedback?.loading ? "animate-spin" : ""}`} />
             {top100Feedback ? top100Feedback.text : "Top 100"}
           </button>
 
           <button
             onClick={() => setShowRoomPicker((v) => !v)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-colors ${
+            className={`h-9 flex items-center gap-1.5 px-3 rounded-lg text-sm font-medium border transition-colors ${
               showRoomPicker
-                ? "bg-blue-600 border-blue-500 text-white"
-                : "bg-gray-800 border-gray-700 text-gray-400 hover:text-white"
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-border bg-input text-muted-foreground hover:bg-accent hover:text-foreground"
             }`}
           >
             <Settings2 className="w-4 h-4" />
@@ -310,50 +285,52 @@ export default function Monitor() {
           onClick={() => setSelectedChannel("todos")}
           className={`px-3 py-1 rounded-lg text-xs font-mono font-bold border transition-colors ${
             selectedChannel === "todos"
-              ? "bg-gray-600 border-gray-400 text-white"
-              : "bg-gray-900 border-gray-700 text-gray-400 hover:text-white"
+              ? "bg-accent border-border text-foreground"
+              : "bg-card border-border text-muted-foreground hover:text-foreground"
           }`}
         >
           Todos
         </button>
-        {[...activeChannels].sort().map((ch) => (
+        {[...activeChannels].sort().map((canal) => (
           <button
-            key={ch}
-            onClick={() => setSelectedChannel(ch)}
-            className={`px-3 py-1 rounded-lg text-xs font-mono font-bold border transition-colors ${
-              selectedChannel === ch
-                ? `${CHANNEL_BADGE[ch] || "bg-gray-600 border-gray-400 text-white"}`
-                : "bg-gray-900 border-gray-700 text-gray-400 hover:text-white"
+            key={canal}
+            onClick={() => setSelectedChannel(canal)}
+            className={`px-3 py-1 rounded-lg text-xs font-mono font-bold border border-transparent transition-colors ${
+              selectedChannel === canal
+                ? ch(canal).tab
+                : `bg-card text-muted-foreground hover:text-foreground hover:bg-accent`
             }`}
           >
-            {ch}
+            {canal}
           </button>
         ))}
       </div>
 
       {/* Room picker */}
       {showRoomPicker && (
-        <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-2">
-          <p className="text-xs font-semibold text-gray-400 mb-2">Salas monitoradas (auto-join na conexão)</p>
+        <div className="bg-card border border-border rounded-xl p-4 space-y-2 animate-fade-in-up">
+          <p className="text-xs font-semibold text-muted-foreground">Salas monitoradas (auto-join na conexão)</p>
           <div className="flex flex-wrap gap-2">
-            {ALL_CHANNELS.map((ch) => {
-              const on = activeChannels.has(ch);
+            {ALL_CHANNELS.map((canal) => {
+              const on = activeChannels.has(canal);
               return (
                 <button
-                  key={ch}
-                  onClick={() => toggleChannel(ch)}
+                  key={canal}
+                  onClick={() => toggleChannel(canal)}
                   className={`px-3 py-1.5 rounded-lg text-sm font-mono font-medium border transition-colors ${
                     on
-                      ? "bg-blue-700 border-blue-500 text-white"
-                      : "bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700"
+                      ? "bg-primary/15 border-primary/40 text-primary"
+                      : "bg-input border-border text-muted-foreground hover:bg-accent hover:text-foreground"
                   }`}
                 >
-                  {on ? "✓ " : ""}{ch}
+                  {on ? "✓ " : ""}{canal}
                 </button>
               );
             })}
           </div>
-          <p className="text-xs text-gray-600">Alterações aplicadas imediatamente — o bot entra na sala na próxima reconexão se ainda não estiver.</p>
+          <p className="text-xs text-muted-foreground/50">
+            Alterações aplicadas imediatamente — o bot entra na sala na próxima reconexão se ainda não estiver.
+          </p>
         </div>
       )}
 
@@ -361,9 +338,9 @@ export default function Monitor() {
       <TriviaBanner triviaEvents={triviaEvents} />
 
       {/* Chat feed */}
-      <div className="flex-1 bg-gray-900 border border-gray-800 rounded-xl overflow-y-auto p-3 space-y-0.5 font-mono text-sm">
+      <div className="flex-1 bg-card border border-border rounded-xl overflow-y-auto p-2 space-y-0.5 font-chat text-sm">
         {filtered.length === 0 ? (
-          <p className="text-gray-600 p-2">Aguardando mensagens...</p>
+          <p className="text-muted-foreground p-3 text-sm">Aguardando mensagens...</p>
         ) : (
           filtered.map((msg, i) => {
             const text = msg.message || msg.comment || "";
@@ -373,35 +350,38 @@ export default function Monitor() {
             const mentionRe = myUsername ? new RegExp(`@${myUsername}`, "i") : null;
             const isMention = mentionRe ? mentionRe.test(text) : false;
 
-            // Split text around @myUsername, wrap matches — creates fresh regex each call
             const renderText = (raw) => {
               if (!isMention || !myUsername) return raw;
               const parts = raw.split(new RegExp(`(@${myUsername})`, "gi"));
               return parts.map((part, idx) =>
                 new RegExp(`^@${myUsername}$`, "i").test(part)
-                  ? <span key={idx} className="text-indigo-200 font-bold bg-indigo-800/60 px-0.5 rounded">{part}</span>
+                  ? <span key={idx} className="rounded bg-indigo-500/25 px-1 text-indigo-200 font-semibold">{part}</span>
                   : part
               );
             };
 
+            const chStyle = ch(msg.channel);
+
             return (
               <div
                 key={i}
-                className={`flex gap-2 px-2 py-0.5 rounded transition-colors ${
+                className={`flex gap-3 px-2 py-1 rounded-md transition-colors ${
                   isMention
-                    ? "bg-indigo-950/70 border-l-2 border-indigo-500 pl-1.5"
+                    ? "border-l-2 border-indigo-400 bg-indigo-500/10 pl-1.5"
                     : isRain
-                    ? "bg-blue-950 border border-blue-800"
+                    ? "bg-info/5 border border-info/20"
                     : isTrivia
-                    ? "bg-amber-950 border border-amber-800"
-                    : "hover:bg-gray-800"
+                    ? "bg-warning/5 border border-warning/20"
+                    : "hover:bg-accent/40"
                 }`}
               >
-                <span className={`shrink-0 font-semibold ${CHANNEL_COLORS[msg.channel] || "text-gray-400"}`}>
-                  [{msg.channel || "?"}]
+                {/* Channel tag */}
+                <span className={`shrink-0 inline-flex items-center h-5 self-center px-1.5 rounded text-[10px] font-bold uppercase font-mono ${chStyle.tag}`}>
+                  {msg.channel || "?"}
                 </span>
+                {/* Username */}
                 <span
-                  className="text-purple-300 shrink-0 cursor-pointer hover:text-purple-100 hover:underline"
+                  className={`shrink-0 font-semibold cursor-pointer hover:opacity-70 transition-opacity ${chStyle.text}`}
                   onClick={() => {
                     setChatMsg(`@${msg.username} `);
                     chatInputRef.current?.focus();
@@ -409,7 +389,10 @@ export default function Monitor() {
                 >
                   {msg.username || "system"}:
                 </span>
-                <span className={`break-all ${isRain ? "text-blue-200 font-semibold" : isTrivia ? "text-amber-200" : "text-gray-200"}`}>
+                {/* Message text */}
+                <span className={`break-all leading-5 ${
+                  isRain ? "text-info font-medium" : isTrivia ? "text-warning" : "text-foreground"
+                }`}>
                   {renderText(text)}
                 </span>
               </div>
@@ -420,23 +403,21 @@ export default function Monitor() {
       </div>
 
       {/* Chat input bar */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 flex items-center gap-2">
-        {/* Channel selector */}
+      <div className="bg-card border border-border rounded-xl p-2.5 flex items-center gap-2">
         <select
           value={chatChannel || ""}
           onChange={(e) => setChatChannel(e.target.value)}
-          className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-sm text-white font-mono shrink-0 focus:outline-none focus:border-blue-500"
+          className="h-9 bg-input border border-border rounded-lg px-2 text-sm text-foreground font-mono shrink-0 focus:outline-none focus:border-primary"
         >
           {activeChannelList.length === 0 ? (
             <option value="en">en</option>
           ) : (
-            activeChannelList.map((ch) => (
-              <option key={ch} value={ch}>{ch}</option>
+            activeChannelList.map((canal) => (
+              <option key={canal} value={canal}>{canal}</option>
             ))
           )}
         </select>
 
-        {/* Message input */}
         <input
           ref={chatInputRef}
           type="text"
@@ -444,21 +425,19 @@ export default function Monitor() {
           onChange={(e) => setChatMsg(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") sendChatMsg(); }}
           placeholder="Digite uma mensagem para enviar ao chat..."
-          className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+          className="flex-1 h-9 bg-input border border-border rounded-lg px-3 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary"
         />
 
-        {/* Feedback */}
         {chatFeedback && (
-          <span className={`text-xs shrink-0 ${chatFeedback.ok ? "text-green-400" : "text-red-400"}`}>
+          <span className={`text-xs shrink-0 font-medium ${chatFeedback.ok ? "text-success" : "text-destructive"}`}>
             {chatFeedback.text}
           </span>
         )}
 
-        {/* Send button */}
         <button
           onClick={sendChatMsg}
           disabled={!chatMsg.trim()}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-700 hover:bg-blue-600 disabled:bg-gray-700 disabled:text-gray-500 text-white rounded-lg text-sm transition-colors shrink-0"
+          className="h-9 flex items-center gap-1.5 px-4 bg-primary hover:brightness-110 disabled:opacity-30 text-primary-foreground rounded-lg text-sm font-semibold transition-all shrink-0"
         >
           <Send className="w-3.5 h-3.5" />
           Enviar
