@@ -130,10 +130,8 @@ async function connect() {
   };
   logger.info(`[WS] Cookie presente: ${atCookie ? "sim (" + atCookie.slice(0, 20) + "…)" : "NÃO — sem sessão autenticada"}`);
 
-  // socket.io v4 sends auth in the CONNECT packet — server validates token here
-  const authPayload = socketToken ? { token: socketToken } : undefined;
-  logger.info(`[WS] auth payload: ${authPayload ? `token=${socketToken.slice(0, 12)}…` : "none"}`);
-
+  // Autenticação é feita exclusivamente via cookie at= nos headers HTTP
+  // Não enviar token no CONNECT packet — o servidor rejeita com Unauthorized
   socket = io(serverUrl, {
     path: "/chat",
     autoConnect: false,
@@ -142,7 +140,6 @@ async function connect() {
     transports: ["polling", "websocket"],
     extraHeaders: sessionHeaders,
     transportOptions: { polling: { extraHeaders: sessionHeaders } },
-    ...(authPayload ? { auth: authPayload } : {}),
   });
 
   // Log de baixo nível para diagnóstico de transport close
