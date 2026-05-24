@@ -386,8 +386,9 @@ function setBrowserToken(token, atCookie) {
 }
 
 function getSocketCookie() {
-  // Prioridade: cookie do login > cookie do browser > BITSLER_AT_COOKIE do .env
-  return _loginCookie || _browserCookie || process.env.BITSLER_AT_COOKIE || null;
+  // Prioridade: cookie do login > cookie do browser > env
+  // Suporta BITSLER_AT_COOKIE (chatbot) e BITSLER_COOKIE (dice monitor)
+  return _loginCookie || _browserCookie || process.env.BITSLER_AT_COOKIE || process.env.BITSLER_COOKIE || null;
 }
 
 async function getSocketToken(forceRefresh = false) {
@@ -414,10 +415,11 @@ async function getSocketToken(forceRefresh = false) {
     return _browserToken;
   }
 
-  // 3. SOCKET_TOKEN manual do .env (último recurso)
-  if (process.env.SOCKET_TOKEN) {
-    logger.info("[Auth] Usando SOCKET_TOKEN manual do .env");
-    return process.env.SOCKET_TOKEN;
+  // 3. Token manual do .env — suporta SOCKET_TOKEN (chatbot) e BITSLER_TOKEN (dice monitor)
+  const manualToken = process.env.SOCKET_TOKEN || process.env.BITSLER_TOKEN;
+  if (manualToken) {
+    logger.info(`[Auth] Usando token manual do .env (${process.env.SOCKET_TOKEN ? "SOCKET_TOKEN" : "BITSLER_TOKEN"})`);
+    return manualToken;
   }
 
   if (!hasCredentials) {
