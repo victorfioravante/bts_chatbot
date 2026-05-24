@@ -8,7 +8,7 @@ const auth = require("../auth");
 
 // Parser selection via env: "msgpack" (default), "official", "none"
 function buildParser() {
-  const mode = process.env.PARSER_MODE || "official";
+  const mode = process.env.PARSER_MODE || "none";
   if (mode === "none") {
     logger.info("[WS] Parser: nenhum (JSON padrão)");
     return undefined;
