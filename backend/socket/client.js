@@ -112,20 +112,22 @@ async function connect() {
   logger.info(`[WS] Conectando: ${serverUrl} path=/chat`);
 
   const parser = buildParser();
-  // Browser envia o valor de e_at como Authorization header (sem Cookie) no ws.bitsler.com.
-  // DevTools confirmou: sem header Cookie no request para ws.bitsler.com.
-  const sessionHeaders = {
+  // DevTools confirmou: browser NÃO envia Authorization no WebSocket upgrade.
+  // Autenticação ocorre via cookie "at" nas requisições HTTP de polling.
+  // Headers do WebSocket upgrade (sem Authorization, sem Cookie).
+  const wsHeaders = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
     "Accept": "*/*",
     "Accept-Language": "en-US,en;q=0.9,pt;q=0.8",
-    "Authorization": socketToken,
     "Origin": "https://www.bitsler.com",
     "Referer": "https://www.bitsler.com/chatPop",
-    "Sec-Fetch-Dest": "empty",
-    "Sec-Fetch-Mode": "cors",
-    "Sec-Fetch-Site": "same-site",
   };
-  logger.info(`[WS] Auth token: ${socketToken.slice(0, 16)}… (${socketToken.length} chars)`);
+  // Polling HTTP inclui o cookie "at" para autenticar a sessão.
+  const pollingHeaders = {
+    ...wsHeaders,
+    ...(atCookie ? { Cookie: atCookie } : {}),
+  };
+  logger.info(`[WS] Cookie: ${atCookie ? atCookie.slice(0, 20) + "…" : "nenhum"}`);
 
   // Autenticação é feita exclusivamente via cookie at= nos headers HTTP
   // Não enviar token no CONNECT packet — o servidor rejeita com Unauthorized
@@ -135,8 +137,8 @@ async function connect() {
     ...(parser ? { parser } : {}),
     reconnection: false,
     transports: ["polling", "websocket"],
-    extraHeaders: sessionHeaders,
-    transportOptions: { polling: { extraHeaders: sessionHeaders } },
+    extraHeaders: wsHeaders,
+    transportOptions: { polling: { extraHeaders: pollingHeaders } },
   });
 
   // Log de baixo nível para diagnóstico de transport close

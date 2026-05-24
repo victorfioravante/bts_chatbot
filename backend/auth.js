@@ -385,25 +385,34 @@ function setBrowserToken(token, atCookie) {
   return changed;
 }
 
+// Extrai apenas o cookie "at" (e opcionalmente "e_at") do cookie completo.
+// O servidor ws.bitsler.com só precisa do "at" para autenticar via polling.
+function extractAtCookie(fullCookie) {
+  if (!fullCookie) return null;
+  const parts = fullCookie.split(/;\s*/);
+  const relevant = parts.filter(p => /^(at|e_at|fpstore)=/.test(p));
+  return relevant.length ? relevant.join("; ") : fullCookie;
+}
+
 function getSocketCookie() {
-  // Prioridade: BITSLER_COOKIE (cookie completo do browser) > browser injetado > BITSLER_AT_COOKIE > login
-  if (process.env.BITSLER_COOKIE) {
-    logger.info(`[Auth] Usando BITSLER_COOKIE (${process.env.BITSLER_COOKIE.length} chars)`);
-    return process.env.BITSLER_COOKIE;
-  }
-  if (_browserCookie) {
-    logger.info(`[Auth] Usando cookie do browser (Tampermonkey)`);
-    return _browserCookie;
-  }
-  if (process.env.BITSLER_AT_COOKIE) {
-    logger.info(`[Auth] Usando BITSLER_AT_COOKIE (${process.env.BITSLER_AT_COOKIE.length} chars)`);
-    return process.env.BITSLER_AT_COOKIE;
-  }
-  if (_loginCookie) {
-    logger.info(`[Auth] Usando cookie do login API`);
-    return _loginCookie;
-  }
-  return null;
+  // Prioridade: BITSLER_COOKIE > browser injetado > BITSLER_AT_COOKIE > login
+  const raw =
+    process.env.BITSLER_COOKIE ||
+    _browserCookie ||
+    process.env.BITSLER_AT_COOKIE ||
+    _loginCookie ||
+    null;
+
+  if (!raw) return null;
+
+  const source = process.env.BITSLER_COOKIE ? "BITSLER_COOKIE"
+    : _browserCookie ? "Tampermonkey"
+    : process.env.BITSLER_AT_COOKIE ? "BITSLER_AT_COOKIE"
+    : "login";
+
+  const cookie = extractAtCookie(raw);
+  logger.info(`[Auth] Cookie (${source}): ${cookie?.slice(0, 30)}… (${cookie?.length} chars)`);
+  return cookie;
 }
 
 async function getSocketToken(forceRefresh = false) {
