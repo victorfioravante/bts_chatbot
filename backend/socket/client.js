@@ -118,12 +118,18 @@ async function connect() {
   const parser = buildParser();
   // Browser envia authorization:guest no header HTTP — autenticação real
   // acontece via cookie "at" (sessão do domínio .bitsler.com).
+  // Headers espelhados do browser real (DevTools → stream.bitsler.com → Request Headers)
+  // Nota: fp NÃO é enviado pelo browser para stream.bitsler.com (só para www.bitsler.com)
   const sessionHeaders = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
-    authorization: "guest",
-    fp: fingerprint,
-    Origin: "https://www.bitsler.com",
-    Referer: "https://www.bitsler.com/chatPop",
+    "Accept": "*/*",
+    "Accept-Language": "en-US,en;q=0.9,pt;q=0.8",
+    "Authorization": "guest",
+    "Origin": "https://www.bitsler.com",
+    "Referer": "https://www.bitsler.com/chatPop",
+    "Sec-Fetch-Dest": "empty",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Site": "same-site",
     ...(atCookie ? { Cookie: atCookie } : {}),
   };
   logger.info(`[WS] Cookie presente: ${atCookie ? "sim (" + atCookie.slice(0, 20) + "…)" : "NÃO — sem sessão autenticada"}`);
