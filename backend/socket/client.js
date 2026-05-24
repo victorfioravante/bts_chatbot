@@ -132,15 +132,17 @@ async function connect() {
     "Referer": pollingHeaders.Referer,
   };
   logger.info(`[WS] Headers: Authorization=guest | Cookie: ${atCookie ? atCookie.slice(0, 20) + "…" : "nenhum"} | fp: ${fingerprint || "nenhum"}`);
+  logger.info(`[WS] CONNECT auth token: ${socketToken.slice(0, 16)}… (${socketToken.length} chars)`);
 
-  // Autenticação é feita exclusivamente via cookie at= nos headers HTTP
-  // Não enviar token no CONNECT packet — o servidor rejeita com Unauthorized
+  // Probe retorna HTTP 200 (engine.io handshake OK), mas "Unauthorized" vem do
+  // CONNECT packet do socket.io (namespace level). Enviamos token no auth do CONNECT.
   socket = io(serverUrl, {
     path: "/chat",
     autoConnect: false,
     ...(parser ? { parser } : {}),
     reconnection: false,
     transports: ["polling", "websocket"],
+    auth: { token: socketToken },
     extraHeaders: wsHeaders,
     transportOptions: { polling: { extraHeaders: pollingHeaders } },
   });
