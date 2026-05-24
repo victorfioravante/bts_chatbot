@@ -1,29 +1,26 @@
 const { io } = require("socket.io-client");
 const https = require("https");
-const { MsgpackEncoder, MsgpackDecoder } = require("./parser");
 const logger = require("../modules/logger");
 const config = require("../config");
 const eventBus = require("../eventBus");
 const auth = require("../auth");
 
-// Parser selection via env: "msgpack" (default), "official", "none"
+// Servidor usa JSON padrão no CONNECT packet — msgpack causa transport close imediato
+// Manter PARSER_MODE=none (padrão). Opção "official" disponível via env se necessário.
 function buildParser() {
   const mode = process.env.PARSER_MODE || "none";
   if (mode === "none") {
-    logger.info("[WS] Parser: nenhum (JSON padrão)");
+    logger.info("[WS] Parser: JSON padrão");
     return undefined;
   }
-  if (mode === "official") {
-    try {
-      const p = require("socket.io-msgpack-parser");
-      logger.info("[WS] Parser: socket.io-msgpack-parser (oficial)");
-      return p;
-    } catch {
-      logger.warn("[WS] socket.io-msgpack-parser não instalado, usando custom");
-    }
+  try {
+    const p = require("socket.io-msgpack-parser");
+    logger.info("[WS] Parser: socket.io-msgpack-parser");
+    return p;
+  } catch {
+    logger.warn("[WS] socket.io-msgpack-parser não instalado, usando JSON");
+    return undefined;
   }
-  logger.info("[WS] Parser: custom msgpack (@msgpack/msgpack)");
-  return { Encoder: MsgpackEncoder, Decoder: MsgpackDecoder };
 }
 
 // Faz um GET raw ao endpoint de polling para ver a resposta do servidor
