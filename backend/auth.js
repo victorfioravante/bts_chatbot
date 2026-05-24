@@ -422,6 +422,17 @@ async function getSocketToken(forceRefresh = false) {
     return manualToken;
   }
 
+  // 2.5. Extrai e_at do cookie — o browser usa o valor de e_at como Authorization header no WS
+  const fullCookie = process.env.BITSLER_COOKIE || process.env.BITSLER_AT_COOKIE;
+  if (fullCookie) {
+    const eAtMatch = fullCookie.match(/(?:^|[;,]\s*)e_at=([a-f0-9]{32,128})(?:[;,]|$)/i);
+    if (eAtMatch) {
+      logger.info(`[Auth] Usando e_at extraído do cookie como token WebSocket: ${eAtMatch[1].slice(0, 12)}…`);
+      return eAtMatch[1];
+    }
+    logger.warn("[Auth] BITSLER_COOKIE não contém e_at — se o Authorization falhar, cole o valor de e_at como SOCKET_TOKEN.");
+  }
+
   // 3. Login automático com credenciais (gera sessão nova — pode não ser aceita pelo chat WS)
   if (hasCredentials) {
     const now = Date.now();

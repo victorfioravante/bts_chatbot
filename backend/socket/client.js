@@ -112,10 +112,8 @@ async function connect() {
   logger.info(`[WS] Conectando: ${serverUrl} path=/chat`);
 
   const parser = buildParser();
-  // Browser envia authorization:guest no header HTTP — autenticação real
-  // acontece via cookie "at" (sessão do domínio .bitsler.com).
-  // Headers espelhados do browser real (DevTools → stream.bitsler.com → Request Headers)
-  // Nota: fp NÃO é enviado pelo browser para stream.bitsler.com (só para www.bitsler.com)
+  // Browser envia o valor de e_at como Authorization header (sem Cookie) no ws.bitsler.com.
+  // DevTools confirmou: sem header Cookie no request para ws.bitsler.com.
   const sessionHeaders = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
     "Accept": "*/*",
@@ -126,9 +124,8 @@ async function connect() {
     "Sec-Fetch-Dest": "empty",
     "Sec-Fetch-Mode": "cors",
     "Sec-Fetch-Site": "same-site",
-    ...(atCookie ? { Cookie: atCookie } : {}),
   };
-  logger.info(`[WS] Auth: ${socketToken.slice(0, 12)}… | Cookie: ${atCookie ? atCookie.slice(0, 15) + "…" : "nenhum"}`);
+  logger.info(`[WS] Auth token: ${socketToken.slice(0, 16)}… (${socketToken.length} chars)`);
 
   // Autenticação é feita exclusivamente via cookie at= nos headers HTTP
   // Não enviar token no CONNECT packet — o servidor rejeita com Unauthorized
