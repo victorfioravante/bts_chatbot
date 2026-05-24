@@ -155,10 +155,10 @@ async function connect() {
     socket.emit("fp", fingerprint);
 
     // Entrar nos canais configurados
-    // Bitsler usa channelName (não channel) no payload — igual ao evento say
+    // Servidor retornou lista de canais no evento "channels" — usamos alias
     const channels = cfg.channels.autoJoin || ["en", "br", "system"];
     channels.forEach((ch) => {
-      socket.emit("join", { channelName: ch });
+      socket.emit("join", { channel: ch });
       logger.info(`Joined canal: ${ch}`);
     });
   });
