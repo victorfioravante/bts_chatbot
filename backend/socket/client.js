@@ -120,7 +120,7 @@ async function connect() {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
     "Accept": "*/*",
     "Accept-Language": "en-US,en;q=0.9,pt;q=0.8",
-    "Authorization": "guest",
+    "Authorization": socketToken,
     "Origin": "https://www.bitsler.com",
     "Referer": "https://www.bitsler.com/chatPop",
     "Sec-Fetch-Dest": "empty",
@@ -128,7 +128,7 @@ async function connect() {
     "Sec-Fetch-Site": "same-site",
     ...(atCookie ? { Cookie: atCookie } : {}),
   };
-  logger.info(`[WS] Cookie presente: ${atCookie ? "sim (" + atCookie.slice(0, 20) + "…)" : "NÃO — sem sessão autenticada"}`);
+  logger.info(`[WS] Cookie: ${atCookie ? atCookie.slice(0, 20) + "…" : "NÃO"} | Auth: ${socketToken.slice(0, 12)}…`);
 
   // Autenticação é feita exclusivamente via cookie at= nos headers HTTP
   // Não enviar token no CONNECT packet — o servidor rejeita com Unauthorized
