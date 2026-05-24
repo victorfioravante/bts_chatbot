@@ -117,13 +117,14 @@ const CHANNEL_BADGE = {
 };
 
 export default function Monitor() {
-  const { messages, triviaEvents } = useStore();
+  const { messages, triviaEvents, user } = useStore();
   const qc = useQueryClient();
   const [filter, setFilter] = useState("");
   const [selectedChannel, setSelectedChannel] = useState("todos");
   const [showRoomPicker, setShowRoomPicker] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const bottomRef = useRef(null);
+  const chatInputRef = useRef(null);
 
   // Chat input state
   const [chatMsg, setChatMsg] = useState("");
@@ -368,11 +369,28 @@ export default function Monitor() {
             const text = msg.message || msg.comment || "";
             const isRain = msg.type === "rain" || ["Chat Rain", "Drizzle Bot", "Drizzle"].includes(msg.username);
             const isTrivia = /guess the crypto/i.test(text) || /game over/i.test(text);
+            const myUsername = user?.username || "";
+            const isMention = myUsername && new RegExp(`@${myUsername}`, "i").test(text);
+
+            // Highlight @myUsername occurrences in text
+            const renderText = (raw) => {
+              if (!isMention || !myUsername) return raw;
+              const regex = new RegExp(`(@${myUsername})`, "gi");
+              const parts = raw.split(regex);
+              return parts.map((part, idx) =>
+                regex.test(part)
+                  ? <span key={idx} className="bg-yellow-500 text-black font-bold px-0.5 rounded">{part}</span>
+                  : part
+              );
+            };
+
             return (
               <div
                 key={i}
                 className={`flex gap-2 px-2 py-0.5 rounded ${
-                  isRain
+                  isMention
+                    ? "bg-yellow-950 border border-yellow-700"
+                    : isRain
                     ? "bg-blue-950 border border-blue-800"
                     : isTrivia
                     ? "bg-amber-950 border border-amber-800"
@@ -382,9 +400,17 @@ export default function Monitor() {
                 <span className={`shrink-0 font-semibold ${CHANNEL_COLORS[msg.channel] || "text-gray-400"}`}>
                   [{msg.channel || "?"}]
                 </span>
-                <span className="text-purple-300 shrink-0">{msg.username || "system"}:</span>
-                <span className={`break-all ${isRain ? "text-blue-200 font-semibold" : isTrivia ? "text-amber-200" : "text-gray-200"}`}>
-                  {text}
+                <span
+                  className="text-purple-300 shrink-0 cursor-pointer hover:text-purple-100 hover:underline"
+                  onClick={() => {
+                    setChatMsg(`@${msg.username} `);
+                    chatInputRef.current?.focus();
+                  }}
+                >
+                  {msg.username || "system"}:
+                </span>
+                <span className={`break-all ${isMention ? "text-yellow-100" : isRain ? "text-blue-200 font-semibold" : isTrivia ? "text-amber-200" : "text-gray-200"}`}>
+                  {renderText(text)}
                 </span>
               </div>
             );
@@ -412,6 +438,7 @@ export default function Monitor() {
 
         {/* Message input */}
         <input
+          ref={chatInputRef}
           type="text"
           value={chatMsg}
           onChange={(e) => setChatMsg(e.target.value)}
