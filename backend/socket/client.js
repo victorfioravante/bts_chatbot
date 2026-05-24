@@ -110,6 +110,11 @@ async function connect() {
 
   // Polling primeiro (HTTP) para enviar auth headers — depois upgrade para WS.
   // extraHeaders no nível raiz garante envio em ambos os transports no Node.js.
+  // Namespace configurável — padrão vazio (root), tente /chat se root falhar
+  const namespace = process.env.WS_NAMESPACE || "";
+  const serverUrl = `https://stream.bitsler.com${namespace}`;
+  logger.info(`[WS] Conectando namespace: "${namespace || "/"}" em ${serverUrl}`);
+
   const parser = buildParser();
   // Browser envia authorization:guest no header HTTP — autenticação real
   // acontece via cookie "at" (sessão do domínio .bitsler.com).
@@ -121,7 +126,7 @@ async function connect() {
     ...(atCookie ? { Cookie: atCookie } : {}),
   };
 
-  socket = io("https://stream.bitsler.com", {
+  socket = io(serverUrl, {
     path: "/socket.io",
     autoConnect: false,
     ...(parser ? { parser } : {}),
@@ -170,10 +175,10 @@ async function connect() {
 
   socket.on("connect_error", (err) => {
     connected = false;
-    logger.error(`Erro de conexao: ${err.message}`);
+    const detail = err.data ? ` | data: ${JSON.stringify(err.data)}` : "";
+    logger.error(`Erro de conexao: ${err.message}${detail}`);
     eventBus.emit("status", { connected: false, error: err.message });
 
-    // Token inválido/expirado — força renovação no próximo connect
     if (/auth|token|401|403/i.test(err.message)) {
       logger.warn("[Auth] Token inválido detectado, forçando renovação...");
       auth.clearCache();
