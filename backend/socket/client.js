@@ -106,7 +106,7 @@ async function connect() {
   // Polling primeiro (HTTP) para enviar auth headers — depois upgrade para WS.
   // extraHeaders no nível raiz garante envio em ambos os transports no Node.js.
   // Namespace configurável — padrão vazio (root), tente /chat se root falhar
-  const namespace = process.env.WS_NAMESPACE || "";
+  const namespace = process.env.WS_NAMESPACE || "/chat";
   const serverUrl = `https://stream.bitsler.com${namespace}`;
   logger.info(`[WS] Conectando namespace: "${namespace || "/"}" em ${serverUrl}`);
 
