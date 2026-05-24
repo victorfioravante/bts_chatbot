@@ -129,11 +129,14 @@ function rawPost(url, payload) {
 function extractResult(body, cookie) {
   const data = body?.data ?? body ?? {};
 
-  // Log all fields to identify which token is the socketToken
-  logger.debug(`[Auth] Campos em data: ${Object.keys(data).join(", ")}`);
-  logger.debug(`[Auth] data.socketToken=${data.socketToken ? data.socketToken.slice(0,20)+"…" : "undefined"}`);
-  logger.debug(`[Auth] data.token=${data.token ? String(data.token).slice(0,20)+"…" : "undefined"}`);
-  logger.debug(`[Auth] data.access_token=${data.access_token ? String(data.access_token).slice(0,20)+"…" : "undefined"}`);
+  // Log completo da resposta pra identificar qual campo tem o token do WebSocket
+  logger.info(`[Auth] Campos retornados pelo login: ${Object.keys(data).join(", ")}`);
+  logger.info(`[Auth] Tamanhos: ${Object.entries(data)
+    .filter(([,v]) => typeof v === "string")
+    .map(([k,v]) => `${k}(${v.length})`)
+    .join(", ")}`);
+  logger.info(`[Auth] data.socketToken=${data.socketToken ? data.socketToken.slice(0,20)+"…" : "undefined"}`);
+  logger.info(`[Auth] data.access_token=${data.access_token ? String(data.access_token).slice(0,20)+"…" : "undefined"}`);
 
   // socketToken para WebSocket é um JWT separado do access_token (REST)
   const socketToken = data.socketToken ?? data.socket_token ?? null;
