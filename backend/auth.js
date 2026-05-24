@@ -386,9 +386,9 @@ function setBrowserToken(token, atCookie) {
 }
 
 function getSocketCookie() {
-  // Prioridade: cookie do browser (sessão real) > cookie do login API > env
-  // Cookie do browser e token do browser devem ser da mesma sessão para ws.bitsler.com aceitar
-  return _browserCookie || process.env.BITSLER_AT_COOKIE || process.env.BITSLER_COOKIE || _loginCookie || null;
+  // Prioridade: BITSLER_COOKIE (cookie completo do browser) > browser injetado > BITSLER_AT_COOKIE > login
+  // Cookie completo (at + e_at + fpstore + settings + ...) é o que o ws.bitsler.com/chat aceita
+  return process.env.BITSLER_COOKIE || _browserCookie || process.env.BITSLER_AT_COOKIE || _loginCookie || null;
 }
 
 async function getSocketToken(forceRefresh = false) {
