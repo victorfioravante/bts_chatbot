@@ -200,10 +200,10 @@ async function connect() {
     socket.disconnect();
   });
 
-  // Diagnóstico: loga todos os eventos recebidos após connect
+  // Loga todos os eventos recebidos (exceto msg/ping que são de alto volume)
   socket.onAny((event, ...args) => {
     if (!["msg", "ping"].includes(event)) {
-      logger.debug(`[WS-event] ${event} ${JSON.stringify(args).slice(0, 200)}`);
+      logger.info(`[WS-event] ${event} ${JSON.stringify(args).slice(0, 300)}`);
     }
   });
 

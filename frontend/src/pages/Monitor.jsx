@@ -120,6 +120,7 @@ export default function Monitor() {
   const { messages, triviaEvents } = useStore();
   const qc = useQueryClient();
   const [filter, setFilter] = useState("");
+  const [selectedChannel, setSelectedChannel] = useState("todos");
   const [showRoomPicker, setShowRoomPicker] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const bottomRef = useRef(null);
@@ -164,6 +165,7 @@ export default function Monitor() {
   }, [messages, autoScroll]);
 
   const filtered = messages.filter((m) => {
+    if (selectedChannel !== "todos" && m.channel !== selectedChannel) return false;
     if (!filter) return true;
     return (
       (m.message || m.comment || "").toLowerCase().includes(filter.toLowerCase()) ||
@@ -179,7 +181,7 @@ export default function Monitor() {
         <div className="flex gap-2 ml-auto items-center flex-wrap">
           <input
             className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-500 w-44"
-            placeholder="Filtrar..."
+            placeholder="Filtrar mensagem..."
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
           />
@@ -205,10 +207,37 @@ export default function Monitor() {
         </div>
       </div>
 
+      {/* Channel tabs */}
+      <div className="flex gap-1.5 flex-wrap">
+        <button
+          onClick={() => setSelectedChannel("todos")}
+          className={`px-3 py-1 rounded-lg text-xs font-mono font-bold border transition-colors ${
+            selectedChannel === "todos"
+              ? "bg-gray-600 border-gray-400 text-white"
+              : "bg-gray-900 border-gray-700 text-gray-400 hover:text-white"
+          }`}
+        >
+          Todos
+        </button>
+        {[...activeChannels].sort().map((ch) => (
+          <button
+            key={ch}
+            onClick={() => setSelectedChannel(ch)}
+            className={`px-3 py-1 rounded-lg text-xs font-mono font-bold border transition-colors ${
+              selectedChannel === ch
+                ? `${CHANNEL_BADGE[ch] || "bg-gray-600 border-gray-400 text-white"}`
+                : "bg-gray-900 border-gray-700 text-gray-400 hover:text-white"
+            }`}
+          >
+            {ch}
+          </button>
+        ))}
+      </div>
+
       {/* Room picker */}
       {showRoomPicker && (
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-2">
-          <p className="text-xs font-semibold text-gray-400 mb-2">Selecione as salas monitoradas (auto-join)</p>
+          <p className="text-xs font-semibold text-gray-400 mb-2">Salas monitoradas (auto-join na conexão)</p>
           <div className="flex flex-wrap gap-2">
             {ALL_CHANNELS.map((ch) => {
               const on = activeChannels.has(ch);
@@ -233,18 +262,6 @@ export default function Monitor() {
 
       {/* Trivia banner */}
       <TriviaBanner triviaEvents={triviaEvents} />
-
-      {/* Active channel badges */}
-      <div className="flex gap-1.5 flex-wrap">
-        {[...activeChannels].sort().map((ch) => (
-          <span
-            key={ch}
-            className={`text-xs font-mono font-bold px-2 py-0.5 rounded border ${CHANNEL_BADGE[ch] || "bg-gray-800 text-gray-300 border-gray-700"}`}
-          >
-            {ch}
-          </span>
-        ))}
-      </div>
 
       {/* Chat feed */}
       <div className="flex-1 bg-gray-900 border border-gray-800 rounded-xl overflow-y-auto p-3 space-y-0.5 font-mono text-sm">
