@@ -5,10 +5,9 @@ const config = require("../config");
 const eventBus = require("../eventBus");
 const auth = require("../auth");
 
-// Servidor usa JSON padrão no CONNECT packet — msgpack causa transport close imediato
-// Manter PARSER_MODE=none (padrão). Opção "official" disponível via env se necessário.
+// ws.bitsler.com/chat usa msgpack (mensagens binárias confirmadas via DevTools)
 function buildParser() {
-  const mode = process.env.PARSER_MODE || "none";
+  const mode = process.env.PARSER_MODE || "msgpack";
   if (mode === "none") {
     logger.info("[WS] Parser: JSON padrão");
     return undefined;
