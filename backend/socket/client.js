@@ -112,22 +112,26 @@ async function connect() {
   logger.info(`[WS] Conectando: ${serverUrl} path=/chat`);
 
   const parser = buildParser();
-  // DevTools confirmou: browser NÃO envia Authorization no WebSocket upgrade.
-  // Autenticação ocorre via cookie "at" nas requisições HTTP de polling.
-  // Headers do WebSocket upgrade (sem Authorization, sem Cookie).
-  const wsHeaders = {
+  // Polling envia "authorization: guest" + Cookie at= (confirmado pelo probe HTTP 200).
+  // WebSocket upgrade não inclui Authorization nem Cookie (DevTools confirmou).
+  const pollingHeaders = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",
     "Accept": "*/*",
     "Accept-Language": "en-US,en;q=0.9,pt;q=0.8",
+    "Authorization": "guest",
     "Origin": "https://www.bitsler.com",
     "Referer": "https://www.bitsler.com/chatPop",
-  };
-  // Polling HTTP inclui o cookie "at" para autenticar a sessão.
-  const pollingHeaders = {
-    ...wsHeaders,
     ...(atCookie ? { Cookie: atCookie } : {}),
+    ...(fingerprint ? { fp: fingerprint } : {}),
   };
-  logger.info(`[WS] Cookie: ${atCookie ? atCookie.slice(0, 20) + "…" : "nenhum"}`);
+  const wsHeaders = {
+    "User-Agent": pollingHeaders["User-Agent"],
+    "Accept": "*/*",
+    "Accept-Language": pollingHeaders["Accept-Language"],
+    "Origin": pollingHeaders.Origin,
+    "Referer": pollingHeaders.Referer,
+  };
+  logger.info(`[WS] Headers: Authorization=guest | Cookie: ${atCookie ? atCookie.slice(0, 20) + "…" : "nenhum"} | fp: ${fingerprint || "nenhum"}`);
 
   // Autenticação é feita exclusivamente via cookie at= nos headers HTTP
   // Não enviar token no CONNECT packet — o servidor rejeita com Unauthorized
