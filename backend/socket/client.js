@@ -26,7 +26,7 @@ function buildParser() {
 // Faz um GET raw ao endpoint de polling para ver a resposta do servidor
 function probePollingEndpoint(socketToken, fingerprint) {
   return new Promise((resolve) => {
-    const path = `/socket.io/?EIO=4&transport=polling&t=${Date.now()}`;
+    const path = `/chat/?EIO=4&transport=polling&t=${Date.now()}`;
     const req = https.request(
       {
         hostname: "stream.bitsler.com",
@@ -134,7 +134,7 @@ async function connect() {
   logger.info(`[WS] auth payload: ${authPayload ? `token=${socketToken.slice(0, 12)}…` : "none"}`);
 
   socket = io(serverUrl, {
-    path: "/socket.io",
+    path: "/chat",
     autoConnect: false,
     ...(parser ? { parser } : {}),
     reconnection: false,
