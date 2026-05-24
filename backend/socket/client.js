@@ -126,6 +126,10 @@ async function connect() {
     ...(atCookie ? { Cookie: atCookie } : {}),
   };
 
+  // socket.io v4 sends auth in the CONNECT packet — server validates token here
+  const authPayload = socketToken ? { token: socketToken } : undefined;
+  logger.info(`[WS] auth payload: ${authPayload ? `token=${socketToken.slice(0, 12)}…` : "none"}`);
+
   socket = io(serverUrl, {
     path: "/socket.io",
     autoConnect: false,
@@ -134,6 +138,7 @@ async function connect() {
     transports: ["polling", "websocket"],
     extraHeaders: sessionHeaders,
     transportOptions: { polling: { extraHeaders: sessionHeaders } },
+    ...(authPayload ? { auth: authPayload } : {}),
   });
 
   // Log de baixo nível para diagnóstico de transport close
@@ -190,6 +195,13 @@ async function connect() {
   socket.on("reload", () => {
     logger.info("Servidor solicitou recarga. Reconectando...");
     socket.disconnect();
+  });
+
+  // Diagnóstico: loga todos os eventos recebidos após connect
+  socket.onAny((event, ...args) => {
+    if (!["msg", "ping"].includes(event)) {
+      logger.debug(`[WS-event] ${event} ${JSON.stringify(args).slice(0, 200)}`);
+    }
   });
 
   socket.connect();
