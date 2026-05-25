@@ -134,7 +134,7 @@ function getScore() {
     const sinceActive = now - (s.lastActive || 0);
     const sinceBet    = now - (s.lastBetTs  || 0);
 
-    if (s.lastBetTs && !s.isHouseCoin && sinceBet < ACTIVE_THRESHOLD_MS) {
+    if (s.lastBetTs && s.lastBetReal && sinceBet < ACTIVE_THRESHOLD_MS) {
       score += weight * 1.5; // apostando cripto real agora
     } else if (s.lastBetTs && !s.lastBetReal && sinceBet < ACTIVE_THRESHOLD_MS) {
       score += weight * 0.6; // apostando moeda da casa agora

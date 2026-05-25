@@ -37,6 +37,7 @@ function GaugeChart({ score }) {
           startAngle={180}
           endAngle={0}
           data={data}
+          domain={[0, 100]}
         >
           <RadialBar background={{ fill: "#1f2937" }} dataKey="value" cornerRadius={6} />
         </RadialBarChart>
