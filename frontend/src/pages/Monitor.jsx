@@ -6,6 +6,44 @@ import { ch } from "../lib/channelStyles";
 
 const API = "/api/v1";
 
+const THEME_LABELS = {
+  crypto_terms: "Termos Crypto",
+  top100_coins: "Top 100 Moedas",
+  bitsler_terms: "Termos Bitsler",
+  casino_terms: "Termos Casino",
+};
+
+function TriviaThemeSelect() {
+  const qc = useQueryClient();
+  const { data: themesData } = useQuery({
+    queryKey: ["triviaThemes"],
+    queryFn: () => fetch(`${API}/trivia/themes`).then((r) => r.json()),
+    refetchInterval: 30000,
+  });
+  const setTheme = useMutation({
+    mutationFn: (theme) =>
+      fetch(`${API}/trivia/theme`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ theme }),
+      }).then((r) => r.json()),
+    onSuccess: () => qc.invalidateQueries(["triviaThemes"]),
+  });
+  const active = themesData?.active || "crypto_terms";
+  return (
+    <select
+      value={active}
+      onChange={(e) => setTheme.mutate(e.target.value)}
+      className="h-9 bg-input border border-border rounded-lg px-2 text-sm text-foreground font-mono shrink-0 focus:outline-none focus:border-primary"
+      title="Lista de palavras usada na Trivia"
+    >
+      {Object.entries(THEME_LABELS).map(([k, v]) => (
+        <option key={k} value={k}>{v}</option>
+      ))}
+    </select>
+  );
+}
+
 function TriviaBanner({ triviaEvents }) {
   const [customAnswer, setCustomAnswer] = useState("");
   const [sent, setSent] = useState(null);
@@ -235,18 +273,22 @@ export default function Monitor() {
             Auto-scroll
           </label>
 
-          {/* Trivia toggle */}
-          <button
-            onClick={() => triviaToggle.mutate(!triviaStatus?.enabled)}
-            className={`h-9 flex items-center gap-1.5 px-3 rounded-lg text-sm font-medium border transition-colors ${
-              triviaStatus?.enabled
-                ? "border-success/50 bg-success/10 text-success hover:bg-success/20"
-                : "border-border bg-input text-muted-foreground hover:bg-accent hover:text-foreground"
-            }`}
-            title={triviaStatus?.enabled ? "Trivia ativo — clique para desativar" : "Trivia inativo — clique para ativar"}
-          >
-            🎮 Trivia {triviaStatus?.enabled ? "ON" : "OFF"}
-          </button>
+          {/* Trivia toggle + theme */}
+          <div className="flex items-center gap-1 border border-border rounded-lg overflow-hidden bg-input">
+            <button
+              onClick={() => triviaToggle.mutate(!triviaStatus?.enabled)}
+              className={`h-9 flex items-center gap-1.5 px-3 text-sm font-medium transition-colors ${
+                triviaStatus?.enabled
+                  ? "bg-success/10 text-success hover:bg-success/20"
+                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
+              }`}
+              title={triviaStatus?.enabled ? "Trivia ativo — clique para desativar" : "Trivia inativo — clique para ativar"}
+            >
+              🎮 {triviaStatus?.enabled ? "ON" : "OFF"}
+            </button>
+            <div className="w-px h-5 bg-border" />
+            <TriviaThemeSelect />
+          </div>
 
           {/* Top 100 refresh */}
           <button

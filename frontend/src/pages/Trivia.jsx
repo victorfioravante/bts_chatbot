@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useStore } from "../store";
-import { Plus, Trash2, Search, Gamepad2, Trophy } from "lucide-react";
+import { Plus, Trash2, Gamepad2 } from "lucide-react";
 
 const API = "/api/v1";
 
@@ -56,137 +55,6 @@ function ThemeSelector() {
           </button>
         ))}
       </div>
-    </div>
-  );
-}
-
-// ─── Active game panel ───────────────────────────────────────────────────────
-
-function ActiveGame({ triviaEvents }) {
-  const last = triviaEvents[0];
-  if (!last) return null;
-
-  if (last.type === "gameOver") {
-    return (
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 flex items-center gap-3">
-        <Trophy className="w-5 h-5 text-yellow-400 shrink-0" />
-        <div>
-          <p className="text-sm font-semibold text-white">Jogo encerrado</p>
-          <p className="text-xs text-gray-400">
-            Resposta: <span className="text-yellow-300 font-mono font-bold">{last.answer}</span>
-            <span className="mx-1 text-gray-600">·</span>
-            <span className="text-gray-500">{THEME_LABELS[last.theme] || last.theme}</span>
-            {last.added && <span className="ml-2 text-green-400">✓ adicionada ao banco</span>}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (last.type === "hint") {
-    return (
-      <div className="bg-amber-950 border border-amber-700 rounded-xl p-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Gamepad2 className="w-5 h-5 text-amber-400" />
-            <span className="text-sm font-semibold text-amber-200">Jogo ativo · canal {last.channel}</span>
-          </div>
-          <span className="text-xs text-amber-600">{THEME_LABELS[last.theme] || last.theme}</span>
-        </div>
-        <p className="font-mono text-2xl text-white tracking-widest">{last.hintRaw}</p>
-        {last.suggestions?.length > 0 ? (
-          <div>
-            <p className="text-xs text-amber-400 mb-2">{last.suggestions.length} sugestão(ões):</p>
-            <div className="flex flex-wrap gap-2">
-              {last.suggestions.map((w) => (
-                <span key={w} className="bg-amber-900 border border-amber-700 text-amber-100 text-sm font-mono font-bold px-3 py-1.5 rounded-lg">
-                  {w}
-                </span>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <p className="text-xs text-gray-500">Nenhuma palavra do banco corresponde. Adicione mais palavras ou mude o tema.</p>
-        )}
-      </div>
-    );
-  }
-
-  return null;
-}
-
-// ─── Manual hint matcher ─────────────────────────────────────────────────────
-
-function HintMatcher() {
-  const [hint, setHint] = useState("");
-  const [theme, setTheme] = useState("");
-  const [result, setResult] = useState(null);
-
-  const search = () => {
-    if (!hint.trim()) return;
-    fetch(`${API}/trivia/match`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ hint: hint.trim(), theme: theme || undefined }),
-    })
-      .then((r) => r.json())
-      .then(setResult)
-      .catch(() => setResult({ error: true }));
-  };
-
-  return (
-    <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-3">
-      <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-        <Search className="w-4 h-4 text-blue-400" />
-        Busca Manual
-      </h2>
-      <p className="text-xs text-gray-500">
-        Digite o padrão do chat separado por espaços, ex: <code className="text-gray-300">A _ _ _</code>
-      </p>
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={hint}
-          onChange={(e) => setHint(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && search()}
-          placeholder="A _ _ _"
-          className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600"
-        />
-        <select
-          value={theme}
-          onChange={(e) => setTheme(e.target.value)}
-          className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-2 text-sm text-white"
-        >
-          <option value="">Todos os temas</option>
-          {Object.entries(THEME_LABELS).map(([k, v]) => (
-            <option key={k} value={k}>{v}</option>
-          ))}
-        </select>
-        <button
-          onClick={search}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
-        >
-          Buscar
-        </button>
-      </div>
-      {result && !result.error && (
-        <div>
-          {result.matches?.length > 0 ? (
-            <div className="space-y-1">
-              <p className="text-xs text-gray-400">{result.matches.length} resultado(s):</p>
-              <div className="flex flex-wrap gap-2">
-                {result.matches.map((w) => (
-                  <span key={w} className="bg-blue-900 border border-blue-700 text-blue-200 text-sm font-mono px-3 py-1 rounded-lg">
-                    {w}
-                  </span>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <p className="text-xs text-amber-400">Nenhuma palavra encontrada. Adicione ao banco ou troque o tema.</p>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -329,7 +197,6 @@ function WordList() {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function Trivia() {
-  const { triviaEvents } = useStore();
   const qc = useQueryClient();
 
   useEffect(() => {
@@ -343,14 +210,12 @@ export default function Trivia() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-white flex items-center gap-2">
           <Gamepad2 className="w-6 h-6 text-amber-400" />
-          Trivia
+          Trivia — Banco de Palavras
         </h1>
-        <span className="text-xs text-gray-500">Detecção automática · auto-adiciona respostas</span>
+        <span className="text-xs text-gray-500">Detecção automática · auto-adiciona respostas · gerencie no Monitor</span>
       </div>
 
       <ThemeSelector />
-      <ActiveGame triviaEvents={triviaEvents} />
-      <HintMatcher />
       <WordList />
     </div>
   );
