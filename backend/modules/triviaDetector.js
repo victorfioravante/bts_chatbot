@@ -141,11 +141,16 @@ function getTheme() {
 // ─── Message analysis ────────────────────────────────────────────────────────
 
 const TRIVIA_START_RE = /guess\s+the\s+(crypto|coin|bitsler|casino)/i;
-// Aceita padrões como "A _ _ _" ou "B l _ _ k" com espaços entre cada caractere
-const HINT_LINE_RE = /^[a-zA-Z_](\s+[a-zA-Z_]){1,}$/;
+// Extrai sequência de 3+ tokens single-char/underscore separados por espaço dentro de qualquer texto
+const HINT_EXTRACT_RE = /\b([A-Za-z_](?:\s+[A-Za-z_]){2,})\b/;
 const GAME_OVER_RE = /game\s*over/i;
 // Captura answer mesmo com markdown bold/italic: **GAME OVER** *answer:* Token
 const ANSWER_RE = /answer[*:\s]+([a-zA-Z]+)/i;
+
+function extractHint(text) {
+  const m = text.match(HINT_EXTRACT_RE);
+  return m ? m[1].trim() : null;
+}
 
 function analyze(msg) {
   if (!triviaEnabled) return;
@@ -172,30 +177,31 @@ function analyze(msg) {
     return;
   }
 
-  if (TRIVIA_START_RE.test(text)) {
-    logger.info(`[Trivia] Jogo detectado no canal ${msg.channel}`);
-    if (!activeGame) activeGame = { hint: null, suggestions: [], channel: msg.channel, startedAt: Date.now() };
-    return;
-  }
-
-  if (HINT_LINE_RE.test(text)) {
-    const hint = parseHint(text);
+  const hintRaw = extractHint(text);
+  if (hintRaw) {
+    const hint = parseHint(hintRaw);
     if (hint) {
       const channel = msg.channel || activeGame?.channel;
       if (!activeGame) activeGame = { hint: null, suggestions: [], channel, startedAt: Date.now() };
       const suggestions = matchWords(hint, activeTheme);
-      activeGame = { ...activeGame, hint, hintRaw: text, suggestions, channel };
-      logger.info(`[Trivia] Dica: "${text}" tema: ${activeTheme} → ${suggestions.length} sugestão(ões): ${suggestions.slice(0, 5).join(", ")}`);
+      activeGame = { ...activeGame, hint, hintRaw, suggestions, channel };
+      logger.info(`[Trivia] Dica: "${hintRaw}" tema: ${activeTheme} → ${suggestions.length} sugestão(ões): ${suggestions.slice(0, 5).join(", ")}`);
       eventBus.emit("triviaEvent", {
         type: "hint",
-        hintRaw: text,
+        hintRaw,
         hint,
         suggestions,
         theme: activeTheme,
         channel,
         timestamp: Date.now(),
       });
+      return;
     }
+  }
+
+  if (TRIVIA_START_RE.test(text)) {
+    logger.info(`[Trivia] Jogo detectado no canal ${msg.channel}`);
+    if (!activeGame) activeGame = { hint: null, suggestions: [], channel: msg.channel, startedAt: Date.now() };
   }
 }
 

@@ -147,6 +147,7 @@ export default function Monitor() {
   const [chatMsg, setChatMsg] = useState("");
   const [chatChannel, setChatChannel] = useState(null);
   const [chatFeedback, setChatFeedback] = useState(null);
+  const [triviaAutofill, setTriviaAutofill] = useState(false);
   const [top100Feedback, setTop100Feedback] = useState(null);
 
   const { data: cfg } = useQuery({
@@ -187,6 +188,7 @@ export default function Monitor() {
       .then((r) => r.json())
       .then((d) => {
         setChatMsg("");
+        setTriviaAutofill(false);
         setChatFeedback({ ok: d.ok, text: d.ok ? "Enviado!" : "Falhou" });
         setTimeout(() => setChatFeedback(null), 3000);
       })
@@ -235,6 +237,17 @@ export default function Monitor() {
     saveChannels.mutate(updated);
     if (!activeChannels.has(channel)) joinChannel(channel);
   };
+
+  // Auto-preenche o input com a primeira sugestão quando uma dica de trivia chega
+  const lastTriviaTs = triviaEvents[0]?.timestamp;
+  useEffect(() => {
+    const ev = triviaEvents[0];
+    if (!ev || ev.type !== "hint" || !ev.suggestions?.length) return;
+    setChatMsg(ev.suggestions[0]);
+    if (ev.channel) setChatChannel(ev.channel);
+    setTriviaAutofill(true);
+    chatInputRef.current?.focus();
+  }, [lastTriviaTs]); // eslint-disable-line
 
   useEffect(() => {
     if (autoScroll && bottomRef.current) {
@@ -464,10 +477,14 @@ export default function Monitor() {
           ref={chatInputRef}
           type="text"
           value={chatMsg}
-          onChange={(e) => setChatMsg(e.target.value)}
+          onChange={(e) => { setChatMsg(e.target.value); setTriviaAutofill(false); }}
           onKeyDown={(e) => { if (e.key === "Enter") sendChatMsg(); }}
           placeholder="Digite uma mensagem para enviar ao chat..."
-          className="flex-1 h-9 bg-input border border-border rounded-lg px-3 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary"
+          className={`flex-1 h-9 bg-input border rounded-lg px-3 text-sm text-foreground placeholder-muted-foreground focus:outline-none transition-colors ${
+            triviaAutofill
+              ? "border-warning/60 focus:border-warning text-warning font-mono font-semibold"
+              : "border-border focus:border-primary"
+          }`}
         />
 
         {chatFeedback && (
