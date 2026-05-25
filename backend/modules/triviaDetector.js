@@ -174,15 +174,17 @@ function analyze(msg) {
 
   if (TRIVIA_START_RE.test(text)) {
     logger.info(`[Trivia] Jogo detectado no canal ${msg.channel}`);
-    activeGame = { hint: null, suggestions: [], channel: msg.channel, startedAt: Date.now() };
+    if (!activeGame) activeGame = { hint: null, suggestions: [], channel: msg.channel, startedAt: Date.now() };
     return;
   }
 
-  if (activeGame && HINT_LINE_RE.test(text)) {
+  if (HINT_LINE_RE.test(text)) {
     const hint = parseHint(text);
     if (hint) {
+      const channel = msg.channel || activeGame?.channel;
+      if (!activeGame) activeGame = { hint: null, suggestions: [], channel, startedAt: Date.now() };
       const suggestions = matchWords(hint, activeTheme);
-      activeGame = { ...activeGame, hint, hintRaw: text, suggestions };
+      activeGame = { ...activeGame, hint, hintRaw: text, suggestions, channel };
       logger.info(`[Trivia] Dica: "${text}" tema: ${activeTheme} → ${suggestions.length} sugestão(ões): ${suggestions.slice(0, 5).join(", ")}`);
       eventBus.emit("triviaEvent", {
         type: "hint",
@@ -190,7 +192,7 @@ function analyze(msg) {
         hint,
         suggestions,
         theme: activeTheme,
-        channel: msg.channel,
+        channel,
         timestamp: Date.now(),
       });
     }
