@@ -38,8 +38,12 @@ function extractInitiator(text) {
   if (!text) return null;
   const clean = text.replace(/<[^>]+>/g, " ").trim();
 
+  // "Chat Rain from Romerito @"  ← formato real do bot Bitsler
+  let m = clean.match(/chat\s+rain\s+from\s+(\w+)/i);
+  if (m) return m[1];
+
   // "X has rained ..."
-  let m = clean.match(/^(\w+)\s+has\s+rained?/i);
+  m = clean.match(/^(\w+)\s+has\s+rained?/i);
   if (m) return m[1];
 
   // "Rain of ... by X ..."
