@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bitsler Trivia Helper
 // @namespace    bitsler-trivia-helper
-// @version      2.1.0
+// @version      2.2.0
 // @description  Detecta tema e dicas do trivia Bitsler, sugere respostas e envia com um clique
 // @author       victorfioravante
 // @match        https://www.bitsler.com/*
@@ -11,6 +11,7 @@
 // @grant        GM_addStyle
 // @connect      api.coingecko.com
 // @connect      localhost
+// @connect      www.bitsler.com
 // @run-at       document-idle
 // ==/UserScript==
 
@@ -230,7 +231,10 @@
       for (const m of muts) for (const node of m.addedNodes) {
         if (node.nodeType !== 1) continue;
         const msgEl = node.querySelector('[class*="message-text" i],[class*="msg-text" i],[class*="text" i],p,span') || node;
-        analyzeMessage(msgEl.textContent || '');
+        const text = msgEl.textContent || '';
+        analyzeMessage(text);
+        // Detecta bet IDs na mensagem e busca detalhes para o bot
+        if (text.includes('#')) extractAndFetchBets(text);
       }
     });
     _obs.observe(container, { childList: true, subtree: true });
@@ -774,6 +778,129 @@
       }
     } catch (e) {}
   }
+
+  // ─── Bet enrichment bridge ────────────────────────────────────────────────
+  // Busca detalhes de bets via cookies do browser e envia ao bot local.
+  // O bot não consegue acessar /api/bets/{id} sem sessão — o Tampermonkey sim.
+
+  const _betFetched = new Set(); // evita refetch do mesmo ID
+
+  const BET_ID_RE = /#(\d{7,})(?:_[WwLl])?/g;
+
+  function parseBetResponse(raw, betId) {
+    try {
+      const body = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      const d = body?.data ?? body ?? {};
+
+      // Tenta campos conhecidos de diferentes endpoints do Bitsler
+      const amount  = parseFloat(d.amount ?? d.bet_amount ?? d.betAmount ?? 0) || 0;
+      const payout  = parseFloat(d.payout ?? d.multiplier ?? d.payoutMultiplier ?? 0) || 0;
+      const profit  = parseFloat(d.profit ?? d.win ?? d.winAmount ?? (amount * payout - amount)) || 0;
+      const currency = (d.currency ?? d.coin ?? d.asset ?? '').toLowerCase();
+      const game    = d.game ?? d.gameName ?? d.game_name ?? d.type ?? d.gameType ?? '';
+      const result  = d.result ?? d.status ?? (profit > 0 ? 'win' : profit < 0 ? 'loss' : '');
+      const username = d.username ?? d.user ?? d.player ?? '';
+
+      if (!amount && !payout && !currency) return null; // resposta vazia
+
+      return { betId: String(betId), game, amount, currency, payout, profit, result, username };
+    } catch {
+      return null;
+    }
+  }
+
+  function pushBetToBot(betData) {
+    GM_xmlhttpRequest({
+      method: 'POST',
+      url: `http://localhost:${BOT_PORT}/api/v1/bets`,
+      headers: { 'Content-Type': 'application/json' },
+      data: JSON.stringify(betData),
+      onerror() {},
+    });
+  }
+
+  function fetchBetForBot(betId) {
+    if (_betFetched.has(betId)) return;
+    _betFetched.add(betId);
+
+    // Tenta vários endpoints — o que retornar dados válidos vence
+    const endpoints = [
+      `/api/bets/${betId}`,
+      `/api/public/bets/${betId}`,
+      `/api/game-history/${betId}`,
+    ];
+
+    let tried = 0;
+    function tryNext() {
+      if (tried >= endpoints.length) return;
+      const path = endpoints[tried++];
+      GM_xmlhttpRequest({
+        method: 'GET',
+        url: `https://www.bitsler.com${path}`,
+        headers: { Accept: 'application/json' },
+        withCredentials: true,   // usa cookies de sessão do browser
+        timeout: 6000,
+        onload(r) {
+          if (r.status === 200) {
+            const data = parseBetResponse(r.responseText, betId);
+            if (data) {
+              pushBetToBot(data);
+              console.log(`[BTH] Bet #${betId} enriquecida → ${data.currency} ${data.amount} ${data.game}`);
+              return;
+            }
+          }
+          tryNext(); // tenta próximo endpoint
+        },
+        onerror: tryNext,
+        ontimeout: tryNext,
+      });
+    }
+    tryNext();
+  }
+
+  // Extrai bet IDs de um texto e busca os dados para cada um
+  function extractAndFetchBets(text) {
+    BET_ID_RE.lastIndex = 0;
+    let m;
+    while ((m = BET_ID_RE.exec(text)) !== null) {
+      fetchBetForBot(m[1]);
+    }
+  }
+
+  // Intercepta respostas do próprio Bitsler que contenham listas de bets
+  // (ex: histórico de jogo, /api/game-history, etc.)
+  const BET_HISTORY_RE = /\/api\/(game-?history|bets|bet-history|user\/bets)/i;
+
+  const _origFetchBet = window.fetch; // referência antes de ser sobrescrito pelo token bridge
+  // Nota: o token bridge já sobrescreveu window.fetch — precisamos encadear
+  // Guardamos a referência atual (que já é o wrapper do token bridge) e adicionamos mais uma camada
+
+  const _tokenFetch = window.fetch;
+  window.fetch = async function(...args) {
+    const resp = await _tokenFetch.apply(this, args);
+    try {
+      const url = typeof args[0] === 'string' ? args[0] : args[0]?.url ?? '';
+      if (BET_HISTORY_RE.test(url)) {
+        const clone = resp.clone();
+        clone.text().then(text => {
+          try {
+            const body = JSON.parse(text);
+            const items = body?.data?.list ?? body?.data?.items ?? body?.data ?? [];
+            if (Array.isArray(items)) {
+              items.forEach(item => {
+                const id = item.id ?? item.betId ?? item.bet_id;
+                if (id) {
+                  const data = parseBetResponse(item, id);
+                  if (data) pushBetToBot(data);
+                }
+              });
+            }
+          } catch {}
+        }).catch(() => {});
+      }
+    } catch {}
+    return resp;
+  };
 
   // ─── Init ─────────────────────────────────────────────────────────────────
   function init() {
