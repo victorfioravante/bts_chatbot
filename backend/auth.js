@@ -489,4 +489,18 @@ function clearCache() {
   _tokenObtainedAt = 0;
 }
 
-module.exports = { getSocketToken, getSocketCookie, clearCache, generateTOTP, setBrowserToken };
+function getAuthStatus() {
+  const now = Date.now();
+  if (_browserToken && now - _browserTokenAt < BROWSER_TOKEN_TTL_MS) {
+    return { source: "ui", tokenAge: Math.floor((now - _browserTokenAt) / 1000) };
+  }
+  if (process.env.SOCKET_TOKEN || process.env.BITSLER_TOKEN) {
+    return { source: "env", tokenAge: null };
+  }
+  if (_cachedToken && now - _tokenObtainedAt < TOKEN_TTL_MS) {
+    return { source: "login", tokenAge: Math.floor((now - _tokenObtainedAt) / 1000) };
+  }
+  return { source: "none", tokenAge: null };
+}
+
+module.exports = { getSocketToken, getSocketCookie, clearCache, generateTOTP, setBrowserToken, getAuthStatus };
