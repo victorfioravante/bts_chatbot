@@ -62,7 +62,7 @@ function BetBadge({ betId, result, msgUsername, msgTimestamp }) {
       </a>
 
       {hovered && (
-        <div className="absolute bottom-full left-0 mb-1.5 z-50 w-56 bg-popover border border-border rounded-lg shadow-xl p-3 text-xs space-y-1.5 pointer-events-none">
+        <div className="absolute bottom-full left-0 mb-1.5 z-50 w-56 bg-gray-900 border border-gray-700 rounded-lg shadow-2xl p-3 text-xs space-y-1.5 pointer-events-none" style={{background:"#111827"}}>
           <div className="flex items-center justify-between">
             <span className="font-semibold text-foreground">Aposta #{betId}</span>
             {result && (
@@ -106,7 +106,7 @@ function BetBadge({ betId, result, msgUsername, msgTimestamp }) {
             </div>
           )}
           {msgTimestamp && (
-            <div className="flex justify-between text-muted-foreground border-t border-border pt-1.5 mt-1">
+            <div className="flex justify-between text-muted-foreground border-t border-gray-700 pt-1.5 mt-1">
               <span>Quando</span>
               <span>{new Date((msgTimestamp > 1e10 ? msgTimestamp : msgTimestamp * 1000)).toLocaleString("pt-BR")}</span>
             </div>
@@ -116,7 +116,7 @@ function BetBadge({ betId, result, msgUsername, msgTimestamp }) {
               Detalhes disponíveis quando enriquecidos pelo Tampermonkey
             </p>
           )}
-          <div className="border-t border-border pt-1.5">
+          <div className="border-t border-gray-700 pt-1.5">
             <span className="text-blue-400 flex items-center gap-1">
               <ExternalLink className="w-3 h-3" /> Clique para abrir no Bitsler
             </span>
