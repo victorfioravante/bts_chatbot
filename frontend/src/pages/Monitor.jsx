@@ -6,6 +6,123 @@ import { ch } from "../lib/channelStyles";
 
 const API = "/api/v1";
 
+// ─── URL / GIF detection ─────────────────────────────────────────────────────
+
+const URL_PATTERN = /https?:\/\/[^\s<>"]+/g;
+// Sempre usar uma nova instância do regex para evitar lastIndex persistente
+function matchUrls(text) { return text.match(/https?:\/\/[^\s<>"]+/g) || []; }
+
+function extractGifSrc(url) {
+  try {
+    const u = new URL(url);
+    if (u.pathname.toLowerCase().endsWith(".gif")) return url;
+    if (u.hostname === "giphy.com" || u.hostname === "www.giphy.com") {
+      const m = u.pathname.match(/\/gifs\/([^/?#]+)/);
+      if (m) {
+        const slug = m[1];
+        const id = slug.includes("-") ? slug.split("-").pop() : slug;
+        return `https://media.giphy.com/media/${id}/giphy.gif`;
+      }
+    }
+    if (/^media\d*\.giphy\.com$/.test(u.hostname)) return url;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Markdown + @mention renderer ───────────────────────────────────────────
+// Transforma text → array de ReactNode com bold, italic, strikethrough, @mention e \n
+
+function applyMarkdown(text, myUsername, keyBase) {
+  let segments = [{ type: "text", content: text }];
+
+  // split com grupo capturante: índices pares = texto, ímpares = conteúdo capturado
+  function splitSegments(segs, re, wrapper) {
+    return segs.flatMap((seg) => {
+      if (seg.type !== "text") return [seg];
+      const parts = seg.content.split(re);
+      return parts.map((p, i) =>
+        i % 2 === 1
+          ? { type: "mark", wrapper, content: p }
+          : { type: "text", content: p }
+      );
+    });
+  }
+
+  // **bold**
+  segments = splitSegments(segments, /\*\*(.+?)\*\*/gs, "bold");
+  // *italic* (não double-star)
+  segments = splitSegments(segments, /(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/gs, "italic");
+  // ~~strike~~
+  segments = splitSegments(segments, /~~(.+?)~~/gs, "strike");
+
+  return segments.flatMap((seg, si) => {
+    const key = `${keyBase}-${si}`;
+    if (seg.type === "mark") {
+      const inner = applyMentionAndNewline(seg.content, myUsername, key);
+      if (seg.wrapper === "bold")   return [<strong key={key}>{inner}</strong>];
+      if (seg.wrapper === "italic") return [<em key={key}>{inner}</em>];
+      if (seg.wrapper === "strike") return [<del key={key}>{inner}</del>];
+    }
+    return applyMentionAndNewline(seg.content, myUsername, key);
+  });
+}
+
+function applyMentionAndNewline(text, myUsername, keyBase) {
+  // Quebra em linhas primeiro
+  return text.split("\n").flatMap((line, li, arr) => {
+    const nodes = myUsername
+      ? line.split(new RegExp(`(@${myUsername})`, "gi")).map((part, pi) =>
+          new RegExp(`^@${myUsername}$`, "i").test(part)
+            ? <span key={`${keyBase}-m-${li}-${pi}`} className="rounded bg-indigo-500/25 px-1 text-indigo-200 font-semibold">{part}</span>
+            : part
+        )
+      : [line];
+    if (li < arr.length - 1) nodes.push(<br key={`${keyBase}-br-${li}`} />);
+    return nodes;
+  });
+}
+
+// Renderiza uma mensagem completa: URLs → GIFs / links; texto → markdown + mentions
+function renderMessage(raw, myUsername, msgIdx) {
+  const parts = [];
+  let lastIdx = 0;
+  let match;
+  const re = /https?:\/\/[^\s<>"]+/g;
+
+  while ((match = re.exec(raw)) !== null) {
+    if (match.index > lastIdx) {
+      parts.push({ kind: "text", content: raw.slice(lastIdx, match.index) });
+    }
+    parts.push({ kind: "url", content: match[0] });
+    lastIdx = match.index + match[0].length;
+  }
+  if (lastIdx < raw.length) parts.push({ kind: "text", content: raw.slice(lastIdx) });
+
+  return parts.flatMap((part, pi) => {
+    const key = `msg-${msgIdx}-p${pi}`;
+    if (part.kind === "url") {
+      const gif = extractGifSrc(part.content);
+      if (gif) {
+        return [
+          <img
+            key={key}
+            src={gif}
+            alt="gif"
+            loading="lazy"
+            className="block max-h-40 rounded-md mt-1 cursor-pointer"
+            onClick={() => window.open(part.content, "_blank")}
+            onError={(e) => { e.currentTarget.style.display = "none"; }}
+          />,
+        ];
+      }
+      return []; // URLs não-GIF: omitir (evita links clicáveis no chat)
+    }
+    return applyMarkdown(part.content, myUsername, key);
+  });
+}
+
 const THEME_LABELS = {
   crypto_terms: "Termos Crypto",
   top100_coins: "Top 100 Moedas",
@@ -411,16 +528,7 @@ export default function Monitor() {
             const myUsername = user?.username || "";
             const mentionRe = myUsername ? new RegExp(`@${myUsername}`, "i") : null;
             const isMention = mentionRe ? mentionRe.test(text) : false;
-
-            const renderText = (raw) => {
-              if (!isMention || !myUsername) return raw;
-              const parts = raw.split(new RegExp(`(@${myUsername})`, "gi"));
-              return parts.map((part, idx) =>
-                new RegExp(`^@${myUsername}$`, "i").test(part)
-                  ? <span key={idx} className="rounded bg-indigo-500/25 px-1 text-indigo-200 font-semibold">{part}</span>
-                  : part
-              );
-            };
+            const hasGif = matchUrls(text).some((u) => !!extractGifSrc(u));
 
             const chStyle = ch(msg.channel);
 
@@ -451,11 +559,11 @@ export default function Monitor() {
                 >
                   {msg.username || "system"}:
                 </span>
-                {/* Message text */}
+                {/* Message — markdown, GIFs, @mentions */}
                 <span className={`break-all leading-5 ${
                   isRain ? "text-info font-medium" : isTrivia ? "text-warning" : "text-foreground"
-                }`}>
-                  {renderText(text)}
+                } ${hasGif ? "flex flex-col gap-1" : ""}`}>
+                  {renderMessage(text, myUsername, i)}
                 </span>
               </div>
             );

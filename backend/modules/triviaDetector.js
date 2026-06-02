@@ -15,7 +15,7 @@ const logger = require("./logger");
 
 const WORDS_PATH = path.join(__dirname, "../../data/triviaWords.json");
 
-const THEMES = ["crypto_terms", "top100_coins", "bitsler_terms", "casino_terms"];
+const THEMES = ["crypto_terms", "top100_coins", "bitsler_terms", "casino_terms", "br_words"];
 
 // ─── Word list ───────────────────────────────────────────────────────────────
 
@@ -152,25 +152,32 @@ function extractHint(text) {
   return m ? m[1].trim() : null;
 }
 
+// Canal BR usa sempre o tema br_words, independente do activeTheme global
+function resolveTheme(channel) {
+  return channel === "br" ? "br_words" : activeTheme;
+}
+
 function analyze(msg) {
   if (!triviaEnabled) return;
   const text = (msg.message || msg.comment || "").trim();
   if (!text) return;
 
+  const theme = resolveTheme(msg.channel);
+
   if (GAME_OVER_RE.test(text)) {
     const answerMatch = text.match(ANSWER_RE);
     if (answerMatch) {
       const answer = answerMatch[1];
-      const result = addWord(answer, activeTheme);
+      const result = addWord(answer, theme);
       const event = {
         type: "gameOver",
         answer,
-        theme: activeTheme,
+        theme,
         added: !!result,
         channel: msg.channel,
         timestamp: Date.now(),
       };
-      logger.info(`[Trivia] Jogo encerrado. Resposta: "${answer}" tema: ${activeTheme} ${result ? "(adicionada)" : "(já existia)"}`);
+      logger.info(`[Trivia] Jogo encerrado. Resposta: "${answer}" tema: ${theme} ${result ? "(adicionada)" : "(já existia)"}`);
       eventBus.emit("triviaEvent", event);
       activeGame = null;
     }
@@ -183,15 +190,15 @@ function analyze(msg) {
     if (hint) {
       const channel = msg.channel || activeGame?.channel;
       if (!activeGame) activeGame = { hint: null, suggestions: [], channel, startedAt: Date.now() };
-      const suggestions = matchWords(hint, activeTheme);
+      const suggestions = matchWords(hint, theme);
       activeGame = { ...activeGame, hint, hintRaw, suggestions, channel };
-      logger.info(`[Trivia] Dica: "${hintRaw}" tema: ${activeTheme} → ${suggestions.length} sugestão(ões): ${suggestions.slice(0, 5).join(", ")}`);
+      logger.info(`[Trivia] Dica: "${hintRaw}" tema: ${theme} → ${suggestions.length} sugestão(ões): ${suggestions.slice(0, 5).join(", ")}`);
       eventBus.emit("triviaEvent", {
         type: "hint",
         hintRaw,
         hint,
         suggestions,
-        theme: activeTheme,
+        theme,
         channel,
         timestamp: Date.now(),
       });
@@ -200,7 +207,7 @@ function analyze(msg) {
   }
 
   if (TRIVIA_START_RE.test(text)) {
-    logger.info(`[Trivia] Jogo detectado no canal ${msg.channel}`);
+    logger.info(`[Trivia] Jogo detectado no canal ${msg.channel} (tema: ${theme})`);
     if (!activeGame) activeGame = { hint: null, suggestions: [], channel: msg.channel, startedAt: Date.now() };
   }
 }

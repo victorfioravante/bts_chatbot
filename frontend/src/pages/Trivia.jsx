@@ -9,6 +9,7 @@ const THEME_LABELS = {
   top100_coins: "Top 100 Moedas",
   bitsler_terms: "Termos Bitsler",
   casino_terms: "Termos Casino",
+  br_words: "PT-BR 🇧🇷",
 };
 
 // ─── Theme selector ──────────────────────────────────────────────────────────
@@ -33,12 +34,13 @@ function ThemeSelector() {
   });
 
   const active = themesData?.active || "crypto_terms";
-  const themes = themesData?.themes || Object.keys(THEME_LABELS);
+  // br_words é gerenciado automaticamente pelo canal BR — não aparece aqui
+  const themes = (themesData?.themes || Object.keys(THEME_LABELS)).filter((t) => t !== "br_words");
 
   return (
     <div className="bg-gray-900 border border-gray-800 rounded-xl p-4 space-y-3">
       <h2 className="text-sm font-semibold text-white">Tema do Dia</h2>
-      <p className="text-xs text-gray-500">Define qual banco de palavras é usado nas sugestões e onde respostas novas são salvas automaticamente.</p>
+      <p className="text-xs text-gray-500">Define qual banco de palavras é usado nas sugestões e onde respostas novas são salvas automaticamente. O canal BR usa sempre PT-BR 🇧🇷 automaticamente.</p>
       <div className="grid grid-cols-2 gap-2">
         {themes.map((t) => (
           <button
