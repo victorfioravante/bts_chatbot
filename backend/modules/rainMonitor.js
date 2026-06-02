@@ -128,6 +128,15 @@ function parseTextRain(text, sourceChannel, username) {
   return null;
 }
 
+// Bitsler às vezes envia amount como string "0.5 USDT" — extrai só o número
+function parseAmount(raw) {
+  if (typeof raw === "number") return raw;
+  if (!raw) return 0;
+  const m = String(raw).match(/[\d,]+\.?\d*/);
+  if (!m) return 0;
+  return parseFloat(m[0].replace(/,/g, "")) || 0;
+}
+
 function extractInitiator(text) {
   if (!text) return null;
   const clean = text.replace(/<[^>]+>/g, " ").trim();
@@ -154,7 +163,7 @@ function buildRainEvent(data) {
       username: data.username || "Chat Rain",
       initiator,
       currency: (data.currency || "btc").toLowerCase(),
-      amount: data.amount || 0,
+      amount: parseAmount(data.amount),
       recipients: Array.isArray(data.users) ? data.users.length : undefined,
       channel: data.channel || "system",
       comment,
@@ -172,8 +181,8 @@ function buildRainEvent(data) {
     return parsed || {
       type: "drizzle",
       username: data.username,
-      currency: data.currency || "btc",
-      amount: data.amount || 0,
+      currency: (data.currency || "btc").toLowerCase(),
+      amount: parseAmount(data.amount),
       channel: data.channel || "system",
       comment: text,
       timestamp: data.timestamp || Math.floor(Date.now() / 1000),

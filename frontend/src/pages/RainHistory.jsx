@@ -44,10 +44,16 @@ export default function RainHistory() {
                     </div>
                   </td>
                   <td className="px-4 py-2 text-white font-semibold">
-                    {r.amount > 0 ? `${r.currency?.toUpperCase()} ${r.amount}` : <span className="text-gray-500 text-xs">—</span>}
+                    {r.amount > 0
+                      ? `${r.currency?.toUpperCase()} ${r.amount}`
+                      : <span className="text-gray-500 text-xs">—</span>}
                   </td>
                   <td className="px-4 py-2 text-gray-300">{r.channel}</td>
-                  <td className="px-4 py-2 text-purple-300">{r.username}</td>
+                  <td className="px-4 py-2">
+                    {r.initiator
+                      ? <><span className="text-amber-300 font-semibold">{r.initiator}</span><span className="text-gray-600 text-xs ml-1">via {r.username}</span></>
+                      : <span className="text-purple-300">{r.username}</span>}
+                  </td>
                   <td className="px-4 py-2 text-gray-400">{r.recipients ?? "—"}</td>
                   <td className="px-4 py-2 text-gray-400">{formatTs(r.timestamp)}</td>
                 </tr>

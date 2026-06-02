@@ -94,7 +94,7 @@ export default function Dashboard() {
         <StatCard
           title="Último Rain"
           value={last ? `${last.currency?.toUpperCase()} ${last.amount}` : "—"}
-          sub={last ? timeAgo(last.timestamp) : undefined}
+          sub={last ? `${last.initiator || last.username} · ${timeAgo(last.timestamp)}` : undefined}
           icon={CloudRain}
           color="blue"
         />
@@ -119,6 +119,9 @@ export default function Dashboard() {
                   <span className="text-foreground font-medium">
                     {r.currency?.toUpperCase()} {r.amount}
                   </span>
+                  {r.initiator && (
+                    <span className="text-amber-400 text-xs font-medium">de {r.initiator}</span>
+                  )}
                   <span className="text-muted-foreground">— {r.channel}</span>
                 </div>
                 <span className="font-mono text-xs text-muted-foreground">{timeAgo(r.timestamp)}</span>

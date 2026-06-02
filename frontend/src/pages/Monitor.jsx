@@ -572,7 +572,12 @@ export default function Monitor() {
                 <span
                   className={`shrink-0 font-semibold cursor-pointer hover:opacity-70 transition-opacity ${chStyle.text}`}
                   onClick={() => {
-                    setChatMsg(`@${msg.username} `);
+                    const mention = `@${msg.username} `;
+                    setChatMsg((prev) => {
+                      // Evita duplicar o mesmo @user se já estiver no input
+                      if (prev.includes(mention.trim())) return prev;
+                      return prev ? `${prev.trimEnd()} ${mention}` : mention;
+                    });
                     chatInputRef.current?.focus();
                   }}
                 >
