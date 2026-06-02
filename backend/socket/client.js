@@ -155,8 +155,8 @@ async function connect() {
     socket.emit("fp", fingerprint);
 
     // Entrar nos canais configurados
-    // Servidor retornou lista de canais no evento "channels" — usamos alias
-    const channels = cfg.channels.autoJoin || ["en", "br", "system"];
+    // "system" não é joinável — chega automaticamente via msg:rain/msg:drizzle
+    const channels = (cfg.channels.autoJoin || ["en", "br"]).filter((c) => c !== "system");
     channels.forEach((ch) => {
       socket.emit("join", { channel: ch });
       logger.info(`Joined canal: ${ch}`);

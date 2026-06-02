@@ -1,5 +1,9 @@
+const fs = require("fs");
+const path = require("path");
 const logger = require("./logger");
 const eventBus = require("../eventBus");
+
+const DATA_FILE = path.join(__dirname, "../../data/rainHistory.json");
 
 // In-memory rain history (last 100 events)
 const rainHistory = [];
@@ -13,6 +17,29 @@ function todayStart() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   return d.getTime();
+}
+
+function load() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
+    if (Array.isArray(raw)) {
+      rainHistory.push(...raw.slice(-MAX_RAIN_HISTORY));
+      lastRain = rainHistory[rainHistory.length - 1] || null;
+      const todayTs = Math.floor(todayStart() / 1000);
+      totalRainsToday = rainHistory.filter((e) => (e.timestamp || 0) >= todayTs).length;
+      logger.info(`[RainMonitor] Histórico carregado: ${rainHistory.length} eventos (${totalRainsToday} hoje)`);
+    }
+  } catch {
+    // arquivo ausente ou inválido — começa vazio
+  }
+}
+
+function save() {
+  try {
+    fs.writeFileSync(DATA_FILE, JSON.stringify(rainHistory, null, 2));
+  } catch (err) {
+    logger.warn(`[RainMonitor] Erro ao salvar histórico: ${err.message}`);
+  }
 }
 
 function resetDailyIfNeeded() {
@@ -35,9 +62,10 @@ function handle(data) {
   totalRainsToday++;
 
   logger.info(
-    `[RAIN] ${event.type} | ${event.currency} ${event.amount} | canal: ${event.channel || "system"} | de: ${event.username}`
+    `[RAIN] ${event.type} | ${event.currency} ${event.amount} | canal: ${event.channel || "system"} | de: ${event.initiator || event.username}`
   );
 
+  save();
   eventBus.emit("rain", event);
 }
 
@@ -113,17 +141,21 @@ function extractInitiator(text) {
 }
 
 function buildRainEvent(data) {
-  // Explicit rain type event
+  // Explicit rain type event (msg:rain — Chat Rain enviado por humano)
   if (data.type === "rain") {
-    // Tenta extrair o usuário humano que iniciou o rain
     const comment = data.comment || data.message || "";
-    const initiator = extractInitiator(comment) || data.initiatedBy || null;
+    // data.from é o campo oficial do Bitsler com o iniciador humano
+    const rawInitiator = data.from || extractInitiator(comment) || data.initiatedBy || null;
+    const initiator = rawInitiator && !["Chat Rain", "Drizzle Bot", "Drizzle"].includes(rawInitiator)
+      ? rawInitiator
+      : null;
     return {
       type: "rain",
       username: data.username || "Chat Rain",
-      initiator: initiator && !["Chat Rain", "Drizzle Bot", "Drizzle"].includes(initiator) ? initiator : null,
-      currency: data.currency || "btc",
+      initiator,
+      currency: (data.currency || "btc").toLowerCase(),
       amount: data.amount || 0,
+      recipients: Array.isArray(data.users) ? data.users.length : undefined,
       channel: data.channel || "system",
       comment,
       level: data.level,
@@ -186,5 +218,8 @@ function getStats() {
     history: rainHistory.slice(-10),
   };
 }
+
+// Carrega histórico persistido ao iniciar
+load();
 
 module.exports = { handle, getHistory, getStats };

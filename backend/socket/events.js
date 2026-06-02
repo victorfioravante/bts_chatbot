@@ -98,7 +98,26 @@ function register(socket) {
     const data = args[0];
     if (!data || typeof data !== "object") return;
 
-    if (data.type === "rain") rainMonitor.handle(data);
+    // msg:rain (Chat Rain, iniciado por humano) — processa rain e exibe no feed
+    if (data.type === "rain") {
+      rainMonitor.handle(data);
+      // Exibe no chat feed como mensagem do canal "system"
+      const rainText = data.message || (data.from ? `Chat Rain from ${data.from}` : "Chat Rain");
+      pushMessage({
+        username: data.username || "Chat Rain",
+        channel: "system",
+        message: rainText,
+        mid: data.mid,
+        type: "rain",
+        timestamp: data.timestamp || Math.floor(Date.now() / 1000),
+        _event: event,
+        _receivedAt: Date.now(),
+        initiator: data.from || null,
+        currency: data.currency,
+        amount: data.amount,
+        recipients: Array.isArray(data.users) ? data.users.length : undefined,
+      });
+    }
 
     // History no join: array de msgs antigas
     const ch = data.channel || data.channelName;

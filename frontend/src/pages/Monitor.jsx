@@ -164,6 +164,13 @@ export default function Monitor() {
     }
   }, [activeChannelList.join(",")]); // eslint-disable-line
 
+  // Quando uma sala específica está selecionada, força o envio para ela
+  useEffect(() => {
+    if (selectedChannel !== "todos") {
+      setChatChannel(selectedChannel);
+    }
+  }, [selectedChannel]);
+
   const { data: triviaStatus } = useQuery({
     queryKey: ["trivia-status"],
     queryFn: () => fetch("/api/v1/trivia/status").then((r) => r.json()),
@@ -459,19 +466,28 @@ export default function Monitor() {
 
       {/* Chat input bar */}
       <div className="bg-card border border-border rounded-xl p-2.5 flex items-center gap-2">
-        <select
-          value={chatChannel || ""}
-          onChange={(e) => setChatChannel(e.target.value)}
-          className="h-9 bg-input border border-border rounded-lg px-2 text-sm text-foreground font-mono shrink-0 focus:outline-none focus:border-primary"
-        >
-          {activeChannelList.length === 0 ? (
-            <option value="en">en</option>
-          ) : (
-            activeChannelList.map((canal) => (
-              <option key={canal} value={canal}>{canal}</option>
-            ))
-          )}
-        </select>
+        {selectedChannel !== "todos" ? (
+          <span
+            className={`h-9 inline-flex items-center px-3 rounded-lg text-sm font-mono font-bold border shrink-0 ${ch(selectedChannel).tab}`}
+            title="Sala forçada pelo filtro ativo"
+          >
+            {selectedChannel}
+          </span>
+        ) : (
+          <select
+            value={chatChannel || ""}
+            onChange={(e) => setChatChannel(e.target.value)}
+            className="h-9 bg-input border border-border rounded-lg px-2 text-sm text-foreground font-mono shrink-0 focus:outline-none focus:border-primary"
+          >
+            {activeChannelList.length === 0 ? (
+              <option value="en">en</option>
+            ) : (
+              activeChannelList.map((canal) => (
+                <option key={canal} value={canal}>{canal}</option>
+              ))
+            )}
+          </select>
+        )}
 
         <input
           ref={chatInputRef}
