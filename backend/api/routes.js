@@ -39,6 +39,26 @@ router.get("/auth/status", (req, res) => {
   res.json({ ...auth.getAuthStatus(), connected: socketClient.isConnected() });
 });
 
+// ─── Bet cache (enriched via Tampermonkey bridge) ───────────────────────────
+// Cache em memória: betId → { game, amount, currency, payout, profit, result }
+const betCache = new Map();
+
+// Recebe dados de bet do Tampermonkey (ou outra fonte) e armazena no cache
+router.post("/bets", (req, res) => {
+  const { betId, game, amount, currency, payout, profit, result, username } = req.body || {};
+  if (!betId || typeof betId !== "string") return res.status(400).json({ error: "betId required" });
+  betCache.set(betId, { game, amount, currency, payout, profit, result, username, cachedAt: Date.now() });
+  res.json({ ok: true });
+});
+
+// Consulta dados de uma bet — retorna do cache se disponível
+router.get("/bets/:id", (req, res) => {
+  const id = req.params.id;
+  const cached = betCache.get(id);
+  if (cached) return res.json({ ok: true, data: cached });
+  res.json({ ok: false, data: null });
+});
+
 // ─── Status ─────────────────────────────────────────────────────────────────
 
 router.get("/status", (req, res) => {

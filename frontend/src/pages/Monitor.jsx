@@ -1,10 +1,131 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "../store";
-import { Settings2, Send, Gamepad2, Trophy, RefreshCw } from "lucide-react";
+import { Settings2, Send, Gamepad2, Trophy, RefreshCw, ExternalLink } from "lucide-react";
 import { ch } from "../lib/channelStyles";
 
 const API = "/api/v1";
+
+// ─── Bet badge ───────────────────────────────────────────────────────────────
+
+const BET_RE = /#(\d{7,})(?:_(W|L|w|l))?/g;
+
+// Bitsler deep-link: abre a página do jogo com o ID da bet
+function betUrl(id) {
+  return `https://www.bitsler.com/en/casino/games/dice?bet=${id}`;
+}
+
+function BetBadge({ betId, result, msgUsername, msgTimestamp }) {
+  const [hovered, setHovered] = useState(false);
+  const [details, setDetails] = useState(null);
+  const [fetched, setFetched] = useState(false);
+
+  const win  = result?.toUpperCase() === "W";
+  const loss = result?.toUpperCase() === "L";
+
+  // Busca detalhes do cache do backend ao hover (uma vez por badge)
+  const onHover = useCallback(() => {
+    setHovered(true);
+    if (fetched) return;
+    setFetched(true);
+    fetch(`${API}/bets/${betId}`)
+      .then((r) => r.json())
+      .then((d) => { if (d.ok && d.data) setDetails(d.data); })
+      .catch(() => {});
+  }, [betId, fetched]);
+
+  const label = result ? `#${betId}_${result.toUpperCase()}` : `#${betId}`;
+
+  return (
+    <span
+      className="relative inline-block"
+      onMouseEnter={onHover}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <a
+        href={betUrl(betId)}
+        target="_blank"
+        rel="noreferrer"
+        className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-mono font-bold border transition-colors cursor-pointer no-underline ${
+          win
+            ? "bg-green-900/40 border-green-700/60 text-green-300 hover:bg-green-800/50"
+            : loss
+            ? "bg-red-900/40 border-red-700/60 text-red-300 hover:bg-red-800/50"
+            : "bg-muted border-border text-muted-foreground hover:bg-accent"
+        }`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {win && <span className="text-green-400">✓</span>}
+        {loss && <span className="text-red-400">✗</span>}
+        {label}
+        <ExternalLink className="w-2.5 h-2.5 opacity-50" />
+      </a>
+
+      {hovered && (
+        <div className="absolute bottom-full left-0 mb-1.5 z-50 w-56 bg-popover border border-border rounded-lg shadow-xl p-3 text-xs space-y-1.5 pointer-events-none">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-foreground">Aposta #{betId}</span>
+            {result && (
+              <span className={`font-bold px-1.5 py-0.5 rounded text-[10px] ${win ? "bg-green-900/50 text-green-300" : "bg-red-900/50 text-red-300"}`}>
+                {win ? "✓ GANHOU" : "✗ PERDEU"}
+              </span>
+            )}
+          </div>
+          {msgUsername && (
+            <div className="flex justify-between text-muted-foreground">
+              <span>Usuário</span>
+              <span className="text-foreground font-medium">{msgUsername}</span>
+            </div>
+          )}
+          {details?.game && (
+            <div className="flex justify-between text-muted-foreground">
+              <span>Jogo</span>
+              <span className="text-foreground capitalize">{details.game}</span>
+            </div>
+          )}
+          {details?.amount != null && (
+            <div className="flex justify-between text-muted-foreground">
+              <span>Bet</span>
+              <span className="text-foreground font-mono">{details.currency?.toUpperCase()} {details.amount}</span>
+            </div>
+          )}
+          {details?.payout != null && (
+            <div className="flex justify-between text-muted-foreground">
+              <span>Payout</span>
+              <span className={`font-mono font-semibold ${details.profit >= 0 ? "text-green-400" : "text-red-400"}`}>
+                {details.payout}x
+              </span>
+            </div>
+          )}
+          {details?.profit != null && (
+            <div className="flex justify-between text-muted-foreground">
+              <span>Lucro</span>
+              <span className={`font-mono font-semibold ${details.profit >= 0 ? "text-green-400" : "text-red-400"}`}>
+                {details.profit >= 0 ? "+" : ""}{details.profit}
+              </span>
+            </div>
+          )}
+          {msgTimestamp && (
+            <div className="flex justify-between text-muted-foreground border-t border-border pt-1.5 mt-1">
+              <span>Quando</span>
+              <span>{new Date((msgTimestamp > 1e10 ? msgTimestamp : msgTimestamp * 1000)).toLocaleString("pt-BR")}</span>
+            </div>
+          )}
+          {!details && (
+            <p className="text-muted-foreground italic text-[10px]">
+              Detalhes disponíveis quando enriquecidos pelo Tampermonkey
+            </p>
+          )}
+          <div className="border-t border-border pt-1.5">
+            <span className="text-blue-400 flex items-center gap-1">
+              <ExternalLink className="w-3 h-3" /> Clique para abrir no Bitsler
+            </span>
+          </div>
+        </div>
+      )}
+    </span>
+  );
+}
 
 // ─── URL / GIF detection ─────────────────────────────────────────────────────
 
@@ -84,8 +205,8 @@ function applyMentionAndNewline(text, myUsername, keyBase) {
   });
 }
 
-// Renderiza uma mensagem completa: URLs → GIFs / links; texto → markdown + mentions
-function renderMessage(raw, myUsername, msgIdx) {
+// Renderiza uma mensagem completa: URLs → GIFs; bets → badges; texto → markdown + mentions
+function renderMessage(raw, myUsername, msgIdx, msgUsername, msgTimestamp) {
   const parts = [];
   let lastIdx = 0;
   let match;
@@ -117,9 +238,33 @@ function renderMessage(raw, myUsername, msgIdx) {
           />,
         ];
       }
-      return []; // URLs não-GIF: omitir (evita links clicáveis no chat)
+      return []; // URLs não-GIF: omitir
     }
-    return applyMarkdown(part.content, myUsername, key);
+
+    // Detectar referências de bet (#DIGITS_W / #DIGITS_L) no texto
+    const betParts = [];
+    let lastBetIdx = 0;
+    const betRe = new RegExp(BET_RE.source, "g");
+    let bm;
+    while ((bm = betRe.exec(part.content)) !== null) {
+      if (bm.index > lastBetIdx) {
+        betParts.push(...applyMarkdown(part.content.slice(lastBetIdx, bm.index), myUsername, `${key}-bt${lastBetIdx}`));
+      }
+      betParts.push(
+        <BetBadge
+          key={`${key}-bet-${bm[1]}`}
+          betId={bm[1]}
+          result={bm[2] || null}
+          msgUsername={msgUsername}
+          msgTimestamp={msgTimestamp}
+        />
+      );
+      lastBetIdx = bm.index + bm[0].length;
+    }
+    if (lastBetIdx < part.content.length) {
+      betParts.push(...applyMarkdown(part.content.slice(lastBetIdx), myUsername, `${key}-bta`));
+    }
+    return betParts.length > 0 ? betParts : applyMarkdown(part.content, myUsername, key);
   });
 }
 
@@ -587,7 +732,7 @@ export default function Monitor() {
                 <span className={`break-all leading-5 ${
                   isRain ? "text-info font-medium" : isTrivia ? "text-warning" : "text-foreground"
                 } ${hasGif ? "flex flex-col gap-1" : ""}`}>
-                  {renderMessage(text, myUsername, i)}
+                  {renderMessage(text, myUsername, i, msg.username, msg.timestamp)}
                 </span>
               </div>
             );
