@@ -363,9 +363,14 @@ export default function Monitor() {
   };
 
   // Auto-preenche o input com a primeira sugestão quando uma dica de trivia chega
-  const lastTriviaTs = triviaEvents[0]?.timestamp;
+  // Só auto-preenche se o evento for do canal visível (ou se estiver em "todos")
+  const relevantTriviaEvents =
+    selectedChannel === "todos"
+      ? triviaEvents
+      : triviaEvents.filter((e) => !e.channel || e.channel === selectedChannel);
+  const lastTriviaTs = relevantTriviaEvents[0]?.timestamp;
   useEffect(() => {
-    const ev = triviaEvents[0];
+    const ev = relevantTriviaEvents[0];
     if (!ev || ev.type !== "hint" || !ev.suggestions?.length) return;
     setChatMsg(ev.suggestions[0]);
     if (ev.channel) setChatChannel(ev.channel);
@@ -410,7 +415,7 @@ export default function Monitor() {
             Auto-scroll
           </label>
 
-          {/* Trivia toggle + theme */}
+          {/* Trivia toggle + tema */}
           <div className="flex items-center gap-1 border border-border rounded-lg overflow-hidden bg-input">
             <button
               onClick={() => triviaToggle.mutate(!triviaStatus?.enabled)}
@@ -424,25 +429,33 @@ export default function Monitor() {
               🎮 {triviaStatus?.enabled ? "ON" : "OFF"}
             </button>
             <div className="w-px h-5 bg-border" />
-            <TriviaThemeSelect />
+            {selectedChannel === "br" ? (
+              <span className="h-9 flex items-center px-3 text-sm font-medium text-green-400 font-mono">
+                🇧🇷 PT-BR
+              </span>
+            ) : (
+              <TriviaThemeSelect />
+            )}
           </div>
 
-          {/* Top 100 refresh */}
-          <button
-            onClick={refreshTop100}
-            disabled={top100Feedback?.loading}
-            className={`h-9 flex items-center gap-1.5 px-3 rounded-lg text-sm font-medium border transition-colors ${
-              top100Feedback?.ok === true
-                ? "border-success/50 bg-success/10 text-success"
-                : top100Feedback?.ok === false
-                ? "border-destructive/50 bg-destructive/10 text-destructive"
-                : "border-border bg-input text-muted-foreground hover:bg-accent hover:text-foreground"
-            }`}
-            title="Atualizar Top 100 moedas do CoinMarketCap"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${top100Feedback?.loading ? "animate-spin" : ""}`} />
-            {top100Feedback ? top100Feedback.text : "Top 100"}
-          </button>
+          {/* Top 100 refresh — só relevante para temas crypto */}
+          {selectedChannel !== "br" && (
+            <button
+              onClick={refreshTop100}
+              disabled={top100Feedback?.loading}
+              className={`h-9 flex items-center gap-1.5 px-3 rounded-lg text-sm font-medium border transition-colors ${
+                top100Feedback?.ok === true
+                  ? "border-success/50 bg-success/10 text-success"
+                  : top100Feedback?.ok === false
+                  ? "border-destructive/50 bg-destructive/10 text-destructive"
+                  : "border-border bg-input text-muted-foreground hover:bg-accent hover:text-foreground"
+              }`}
+              title="Atualizar Top 100 moedas do CoinMarketCap"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${top100Feedback?.loading ? "animate-spin" : ""}`} />
+              {top100Feedback ? top100Feedback.text : "Top 100"}
+            </button>
+          )}
 
           <button
             onClick={() => setShowRoomPicker((v) => !v)}
@@ -513,8 +526,14 @@ export default function Monitor() {
         </div>
       )}
 
-      {/* Trivia banner */}
-      <TriviaBanner triviaEvents={triviaEvents} />
+      {/* Trivia banner — filtra pelo canal ativo */}
+      <TriviaBanner
+        triviaEvents={
+          selectedChannel === "todos"
+            ? triviaEvents
+            : triviaEvents.filter((e) => !e.channel || e.channel === selectedChannel)
+        }
+      />
 
       {/* Chat feed */}
       <div className="flex-1 bg-card border border-border rounded-xl overflow-y-auto p-2 space-y-0.5 font-chat text-sm">
@@ -524,7 +543,7 @@ export default function Monitor() {
           filtered.map((msg, i) => {
             const text = msg.message || msg.comment || "";
             const isRain = msg.type === "rain" || ["Chat Rain", "Drizzle Bot", "Drizzle"].includes(msg.username);
-            const isTrivia = /guess the crypto/i.test(text) || /game over/i.test(text);
+            const isTrivia = /guess the crypto/i.test(text) || /game\s*over/i.test(text);
             const myUsername = user?.username || "";
             const mentionRe = myUsername ? new RegExp(`@${myUsername}`, "i") : null;
             const isMention = mentionRe ? mentionRe.test(text) : false;
