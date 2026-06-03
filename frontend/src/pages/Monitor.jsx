@@ -71,50 +71,40 @@ function BetBadge({ betId, result, msgUsername, msgTimestamp }) {
               </span>
             )}
           </div>
-          {msgUsername && (
-            <div className="flex justify-between text-muted-foreground">
-              <span>Usuário</span>
-              <span className="text-foreground font-medium">{msgUsername}</span>
-            </div>
-          )}
-          {details?.game && (
-            <div className="flex justify-between text-muted-foreground">
-              <span>Jogo</span>
-              <span className="text-foreground capitalize">{details.game}</span>
-            </div>
-          )}
-          {details?.amount != null && (
-            <div className="flex justify-between text-muted-foreground">
-              <span>Bet</span>
-              <span className="text-foreground font-mono">{details.currency?.toUpperCase()} {details.amount}</span>
-            </div>
-          )}
-          {details?.payout != null && (
-            <div className="flex justify-between text-muted-foreground">
-              <span>Payout</span>
-              <span className={`font-mono font-semibold ${details.profit >= 0 ? "text-green-400" : "text-red-400"}`}>
-                {details.payout}x
-              </span>
-            </div>
-          )}
-          {details?.profit != null && (
-            <div className="flex justify-between text-muted-foreground">
-              <span>Lucro</span>
-              <span className={`font-mono font-semibold ${details.profit >= 0 ? "text-green-400" : "text-red-400"}`}>
-                {details.profit >= 0 ? "+" : ""}{details.profit}
-              </span>
-            </div>
+          {/* Usuário — prefere o da API (dono real da bet), fallback para quem postou */}
+          <div className="flex justify-between text-muted-foreground">
+            <span>Usuário</span>
+            <span className="text-foreground font-medium">{details?.username || msgUsername || "—"}</span>
+          </div>
+          {details ? (
+            <>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Jogo</span>
+                <span className="text-foreground capitalize font-medium">{details.game || "—"}</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Bet</span>
+                <span className="text-foreground font-mono">{details.currency?.toUpperCase()} {details.amount}</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Payout</span>
+                <span className="text-foreground font-mono font-semibold">{details.payout}x</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Ganho</span>
+                <span className={`font-mono font-bold ${details.profit > 0 ? "text-green-400" : "text-red-400"}`}>
+                  {details.profit > 0 ? "+" : ""}{details.currency?.toUpperCase()} {Math.abs(details.profit).toFixed(8)}
+                </span>
+              </div>
+            </>
+          ) : (
+            <p className="text-gray-500 italic text-[10px]">Buscando detalhes...</p>
           )}
           {msgTimestamp && (
             <div className="flex justify-between text-muted-foreground border-t border-gray-700 pt-1.5 mt-1">
               <span>Quando</span>
               <span>{new Date((msgTimestamp > 1e10 ? msgTimestamp : msgTimestamp * 1000)).toLocaleString("pt-BR")}</span>
             </div>
-          )}
-          {!details && (
-            <p className="text-muted-foreground italic text-[10px]">
-              Detalhes disponíveis quando enriquecidos pelo Tampermonkey
-            </p>
           )}
           <div className="border-t border-gray-700 pt-1.5">
             <span className="text-blue-400 flex items-center gap-1">

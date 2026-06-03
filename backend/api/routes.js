@@ -10,6 +10,7 @@ const triviaDetector = require("../modules/triviaDetector");
 const config = require("../config");
 const { sseMiddleware } = require("./sse");
 const auth = require("../auth");
+const betTracker = require("../modules/betTracker");
 
 // ─── Browser token bridge (Tampermonkey → backend) ──────────────────────────
 // Recebe o socketToken extraído do window.__vue_store__ pelo script Tampermonkey.
@@ -39,24 +40,18 @@ router.get("/auth/status", (req, res) => {
   res.json({ ...auth.getAuthStatus(), connected: socketClient.isConnected() });
 });
 
-// ─── Bet cache (enriched via Tampermonkey bridge) ───────────────────────────
-// Cache em memória: betId → { game, amount, currency, payout, profit, result }
-const betCache = new Map();
+// ─── Bet lookup — POST /api/bet (público, notoken=true) ─────────────────────
 
-// Recebe dados de bet do Tampermonkey (ou outra fonte) e armazena no cache
-router.post("/bets", (req, res) => {
-  const { betId, game, amount, currency, payout, profit, result, username } = req.body || {};
-  if (!betId || typeof betId !== "string") return res.status(400).json({ error: "betId required" });
-  betCache.set(betId, { game, amount, currency, payout, profit, result, username, cachedAt: Date.now() });
-  res.json({ ok: true });
-});
-
-// Consulta dados de uma bet — retorna do cache se disponível
-router.get("/bets/:id", (req, res) => {
+// GET /bets/:id — retorna do cache ou busca ao vivo na API do Bitsler
+router.get("/bets/:id", async (req, res) => {
   const id = req.params.id;
-  const cached = betCache.get(id);
-  if (cached) return res.json({ ok: true, data: cached });
-  res.json({ ok: false, data: null });
+  try {
+    const details = await betTracker.fetchBetDetails(id);
+    if (details) return res.json({ ok: true, data: details });
+    res.json({ ok: false, data: null });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
 });
 
 // ─── Status ─────────────────────────────────────────────────────────────────
