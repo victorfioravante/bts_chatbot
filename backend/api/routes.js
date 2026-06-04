@@ -47,8 +47,13 @@ router.get("/bets/:id", async (req, res) => {
   const id = req.params.id;
   try {
     const details = await betTracker.fetchBetDetails(id);
-    if (details) return res.json({ ok: true, data: details });
-    res.json({ ok: false, data: null });
+    if (!details) return res.json({ ok: false, data: null });
+
+    // Recalcular rps em tempo real (pode ter melhorado com bets mais recentes)
+    const freshRps = betTracker.calcRPS(details.username);
+    const data = freshRps !== null ? { ...details, rps: freshRps } : details;
+
+    res.json({ ok: true, data });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
   }

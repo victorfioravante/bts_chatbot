@@ -8,8 +8,54 @@ const HOUSE_COINS = new Set(["bitsler", "fun", "bsl", "free", "bonus"]);
 const BET_REGEX = /#(\d{7,})/g;
 
 // Cache em memória: betId → dados completos
-// Compartilhado com routes.js via getBetCache() — evita busca dupla
 const betCache = new Map();
+
+// Histórico de bets por usuário: username → [{betId, nonce, seed, timestamp}]
+// Usado para calcular rolls/s entre apostas consecutivas do mesmo usuário
+const MAX_USER_HISTORY = 20;
+const userBetHistory = new Map();
+
+function extractNonce(seedClientNonced) {
+  if (!seedClientNonced) return null;
+  const parts = String(seedClientNonced).split(",");
+  if (parts.length < 2) return null;
+  const n = parseInt(parts[parts.length - 1], 10);
+  return isNaN(n) ? null : { seed: parts[0], nonce: n };
+}
+
+function updateUserHistory(username, betId, nonce, seed, timestamp) {
+  if (!username || nonce == null) return;
+  const history = userBetHistory.get(username) || [];
+  history.push({ betId, nonce, seed, timestamp });
+  if (history.length > MAX_USER_HISTORY) history.shift();
+  userBetHistory.set(username, history);
+}
+
+/**
+ * Calcula rolls/s para um usuário baseado nas duas bets mais recentes
+ * com o mesmo client seed (nonce incrementa sequencialmente por seed).
+ * Retorna null se não houver dados suficientes.
+ */
+function calcRPS(username) {
+  const history = userBetHistory.get(username);
+  if (!history || history.length < 2) return null;
+
+  // Pega as duas mais recentes com mesmo seed
+  const sameSeed = [];
+  for (let i = history.length - 1; i >= 0 && sameSeed.length < 2; i--) {
+    if (sameSeed.length === 0 || sameSeed[0].seed === history[i].seed) {
+      sameSeed.unshift(history[i]);
+    }
+  }
+  if (sameSeed.length < 2) return null;
+
+  const [a, b] = sameSeed;
+  const deltaNonce = b.nonce - a.nonce;
+  const deltaTime  = b.timestamp - a.timestamp; // segundos
+
+  if (deltaNonce <= 0 || deltaTime <= 0) return null;
+  return parseFloat((deltaNonce / deltaTime).toFixed(3));
+}
 
 /**
  * POST https://www.bitsler.com/api/bet
@@ -68,10 +114,20 @@ function fetchBetDetails(betId) {
             const profit      = parseFloat(d.profit || 0);
             const isHouseCoin = HOUSE_COINS.has(currency);
             const result      = profit > 0 ? "win" : "loss";
+            const timestamp   = d.timestamp || Math.floor(Date.now() / 1000);
+            const username    = d.username || "";
+
+            // Extrair nonce do client seed para cálculo de RPS
+            const nonceInfo = extractNonce(d.seed_client_nonced);
+            if (username && nonceInfo) {
+              updateUserHistory(username, betId, nonceInfo.nonce, nonceInfo.seed, timestamp);
+            }
+
+            const rps = username ? calcRPS(username) : null;
 
             const details = {
               betId,
-              username:    d.username    || "",
+              username,
               game:        d.game        || "",
               currency,
               amount,
@@ -81,8 +137,10 @@ function fetchBetDetails(betId) {
               result,
               isHouseCoin,
               chance:      parseFloat(d.chance || 0),
-              timestamp:   d.timestamp || Math.floor(Date.now() / 1000),
+              timestamp,
               auto:        !!d.auto,
+              nonce:       nonceInfo?.nonce ?? null,
+              rps,         // rolls/segundo (null se não calculável ainda)
             };
 
             betCache.set(betId, details);
@@ -144,4 +202,4 @@ function init() {
   logger.info("[BetTracker] Módulo iniciado.");
 }
 
-module.exports = { init, fetchBetDetails, getBetCache };
+module.exports = { init, fetchBetDetails, getBetCache, calcRPS, userBetHistory };

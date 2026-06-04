@@ -96,6 +96,23 @@ function BetBadge({ betId, result, msgUsername, msgTimestamp }) {
                   {details.profit > 0 ? "+" : ""}{details.currency?.toUpperCase()} {Math.abs(details.profit).toFixed(8)}
                 </span>
               </div>
+              {details.rps != null && (
+                <div className="flex justify-between text-muted-foreground border-t border-gray-700 pt-1.5">
+                  <span>Velocidade</span>
+                  <span className="font-mono font-semibold text-yellow-400">
+                    {details.rps} rolls/s
+                    <span className="text-gray-500 font-normal ml-1">
+                      (~{Math.round(details.rps * 60)}/min)
+                    </span>
+                  </span>
+                </div>
+              )}
+              {details.nonce != null && (
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Nonce</span>
+                  <span className="font-mono text-gray-400">#{details.nonce.toLocaleString()}</span>
+                </div>
+              )}
             </>
           ) : (
             <p className="text-gray-500 italic text-[10px]">Buscando detalhes...</p>
