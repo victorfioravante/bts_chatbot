@@ -175,13 +175,21 @@ async function connect() {
     connected = false;
     const detail = err.data ? ` | data: ${JSON.stringify(err.data)}` : "";
     logger.error(`Erro de conexao: ${err.message}${detail}`);
-    eventBus.emit("status", { connected: false, error: err.message });
 
-    if (/auth|token|401|403/i.test(err.message)) {
-      logger.warn("[Auth] Token inválido detectado, forçando renovação...");
+    if (/auth|token|401|403|unauthorized/i.test(err.message)) {
+      logger.warn("[Auth] Token inválido/expirado. Reconexão automática pausada — forneça um novo token via UI.");
       auth.clearCache();
+      // Emite status com mensagem amigável para o Dashboard mostrar o card de renovação
+      eventBus.emit("status", {
+        connected: false,
+        error: "Token expirado ou inválido. Insira um novo token no Dashboard para reconectar.",
+        authError: true,
+      });
+      // NÃO chama scheduleReconnect — evita loop infinito com token ruim
+      return;
     }
 
+    eventBus.emit("status", { connected: false, error: err.message });
     scheduleReconnect();
   });
 

@@ -373,18 +373,22 @@ const BROWSER_TOKEN_TTL_MS = 4 * 60 * 60 * 1000; // 4 horas
 // Cookie do login automático (obtido via Set-Cookie do /api/login)
 let _loginCookie = null;
 
+// Flag: token do .env foi rejeitado por auth error — não usar mais até reset
+let _envTokenInvalid = false;
+
 function setBrowserToken(token, atCookie) {
   let changed = false;
   if (token && token !== _browserToken) {
     _browserToken = token;
     _browserTokenAt = Date.now();
+    _envTokenInvalid = false; // novo token disponível — reabilita env como fallback futuro
     changed = true;
   }
   if (atCookie && atCookie !== _browserCookie) {
     _browserCookie = atCookie;
     changed = true;
   }
-  if (changed) logger.info("[Auth] Token/cookie recebido do browser (Tampermonkey).");
+  if (changed) logger.info("[Auth] Token/cookie recebido (UI/Tampermonkey). Token do .env ignorado até próximo restart.");
   return changed;
 }
 
@@ -440,17 +444,20 @@ async function getSocketToken(forceRefresh = false) {
     }
   }
 
-  // 1. Token do browser via Tampermonkey — sessão real do browser, aceita pelo chat WS
-  if (!forceRefresh && _browserToken && Date.now() - _browserTokenAt < BROWSER_TOKEN_TTL_MS) {
-    logger.info("[Auth] Usando token do browser (Tampermonkey).");
+  // 1. Token do browser/UI — SEMPRE tem prioridade quando válido (ignora forceRefresh)
+  if (_browserToken && Date.now() - _browserTokenAt < BROWSER_TOKEN_TTL_MS) {
+    logger.info("[Auth] Usando token do browser (UI/Tampermonkey).");
     return _browserToken;
   }
 
-  // 2. Token manual do .env (SOCKET_TOKEN ou BITSLER_TOKEN)
+  // 2. Token manual do .env — usado apenas se não foi invalidado por erro de auth
   const manualToken = process.env.SOCKET_TOKEN || process.env.BITSLER_TOKEN;
-  if (manualToken) {
+  if (manualToken && !_envTokenInvalid) {
     logger.info(`[Auth] Usando token manual do .env (${process.env.SOCKET_TOKEN ? "SOCKET_TOKEN" : "BITSLER_TOKEN"})`);
     return manualToken;
+  }
+  if (manualToken && _envTokenInvalid) {
+    logger.warn("[Auth] Token do .env invalidado por erro de autenticação — aguardando novo token via UI.");
   }
 
   // 2.5. Extrai e_at do cookie — o browser usa o valor de e_at como Authorization header no WS
@@ -487,6 +494,9 @@ async function getSocketToken(forceRefresh = false) {
 function clearCache() {
   _cachedToken = null;
   _tokenObtainedAt = 0;
+  // Invalida o token do .env para evitar loop com token expirado
+  _envTokenInvalid = true;
+  logger.warn("[Auth] Cache limpo. Token do .env suspenso até novo token ser fornecido via UI.");
 }
 
 function getAuthStatus() {
