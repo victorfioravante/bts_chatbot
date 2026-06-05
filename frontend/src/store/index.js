@@ -17,8 +17,10 @@ export const useStore = create((set, get) => ({
   triviaActive: false,
   rainActivity: [],
   rainIntel: { score: 5, senders: [], hourPattern: new Array(24).fill(0) },
+  connectionError: null,   // mensagem de erro da última tentativa de conexão
 
   setConnected: (v) => set({ connected: v }),
+  setConnectionError: (e) => set({ connectionError: e || null }),
   setUser: (u) => set({ user: u }),
   setChannels: (c) => set({ channels: c }),
   setUptime: (u) => set({ uptime: u }),

@@ -1,8 +1,10 @@
-import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Wifi, WifiOff, CloudRain, Zap, Clock, MessageCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Wifi, WifiOff, CloudRain, Zap, Clock, MessageCircle, Copy, ExternalLink, KeyRound, RefreshCw } from "lucide-react";
 import { StatCard } from "../components/StatCard";
 import { useStore } from "../store";
+
+const CONSOLE_CMD = `copy(window.__vue_store__?.state?.chat?.user?.socketToken)`;
 
 function formatUptime(s) {
   if (!s) return "—";
@@ -22,8 +24,152 @@ function timeAgo(ts) {
   return `${Math.floor(diff / 3600)}h atrás`;
 }
 
+// ─── Card de renovação de token ──────────────────────────────────────────────
+
+function TokenRenewalCard({ error }) {
+  const qc = useQueryClient();
+  const [token, setToken]           = useState("");
+  const [showGuide, setShowGuide]   = useState(false);
+  const [cmdCopied, setCmdCopied]   = useState(false);
+  const [feedback, setFeedback]     = useState(null);
+
+  const isAuthError = !error || /token|auth|sem token|401|403|expired|invalid/i.test(error);
+
+  const applyToken = async () => {
+    if (!token.trim()) return;
+    setFeedback({ loading: true, text: "Aplicando token..." });
+    try {
+      const res = await fetch("/api/v1/socket-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: token.trim(), autoConnect: true }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setFeedback({ ok: true, text: "✓ Token aplicado — conectando..." });
+        setToken("");
+        setTimeout(() => {
+          setFeedback(null);
+          qc.invalidateQueries(["status"]);
+          qc.invalidateQueries(["authStatus"]);
+        }, 2500);
+      } else {
+        setFeedback({ ok: false, text: `✗ ${data.error || "Token rejeitado"}` });
+        setTimeout(() => setFeedback(null), 4000);
+      }
+    } catch {
+      setFeedback({ ok: false, text: "✗ Falha na requisição" });
+      setTimeout(() => setFeedback(null), 4000);
+    }
+  };
+
+  const copyCmd = () => {
+    navigator.clipboard.writeText(CONSOLE_CMD).then(() => {
+      setCmdCopied(true);
+      setTimeout(() => setCmdCopied(false), 2500);
+    });
+  };
+
+  return (
+    <div className="bg-card border border-destructive/40 rounded-2xl p-6 space-y-5 shadow-lg">
+      {/* Header */}
+      <div className="flex items-start gap-4">
+        <div className="w-10 h-10 rounded-full bg-destructive/15 flex items-center justify-center shrink-0 mt-0.5">
+          <KeyRound className="w-5 h-5 text-destructive" />
+        </div>
+        <div>
+          <h2 className="text-base font-semibold text-foreground">Token expirado — reconexão necessária</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {error
+              ? <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{error}</span>
+              : "O bot está desconectado. Insira um novo token para retomar."}
+          </p>
+        </div>
+      </div>
+
+      {/* Guia expansível */}
+      <div className="space-y-3">
+        <button
+          onClick={() => setShowGuide((v) => !v)}
+          className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1.5 transition-colors"
+        >
+          {showGuide ? "▲ Esconder instruções" : "▼ Como obter o token (DevTools)"}
+        </button>
+
+        {showGuide && (
+          <div className="bg-muted rounded-xl p-4 space-y-3 border border-border">
+            <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside">
+              <li>Abra o Bitsler e faça login no browser</li>
+              <li>Pressione <kbd className="bg-background border border-border px-1 rounded text-foreground">F12</kbd> → aba <span className="text-foreground font-medium">Console</span></li>
+              <li>Cole e execute o comando abaixo — o token vai para a área de transferência</li>
+              <li>Volte aqui e cole no campo abaixo</li>
+            </ol>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 bg-gray-950 text-green-400 text-xs px-3 py-2 rounded-lg font-mono break-all border border-gray-800">
+                {CONSOLE_CMD}
+              </code>
+              <button
+                onClick={copyCmd}
+                className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${
+                  cmdCopied
+                    ? "bg-green-900/40 border-green-700 text-green-400"
+                    : "bg-muted border-border text-muted-foreground hover:text-foreground hover:bg-accent"
+                }`}
+              >
+                <Copy className="w-3 h-3" />
+                {cmdCopied ? "Copiado!" : "Copiar"}
+              </button>
+            </div>
+            <a
+              href="https://www.bitsler.com"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              <ExternalLink className="w-3 h-3" /> Abrir Bitsler em nova aba
+            </a>
+          </div>
+        )}
+      </div>
+
+      {/* Input + botão */}
+      <div className="space-y-2">
+        <input
+          type="password"
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && applyToken()}
+          placeholder="Cole o socketToken aqui e pressione Enter..."
+          autoFocus
+          className="w-full bg-input border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:border-primary transition-colors"
+        />
+        <div className="flex items-center gap-3">
+          <button
+            onClick={applyToken}
+            disabled={!token.trim() || feedback?.loading}
+            className="flex items-center gap-2 bg-primary hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed text-primary-foreground px-5 py-2.5 rounded-xl text-sm font-semibold transition-all"
+          >
+            <RefreshCw className={`w-4 h-4 ${feedback?.loading ? "animate-spin" : ""}`} />
+            Aplicar e Reconectar
+          </button>
+          {feedback && !feedback.loading && (
+            <span className={`text-sm font-medium ${feedback.ok ? "text-green-400" : "text-destructive"}`}>
+              {feedback.text}
+            </span>
+          )}
+          {feedback?.loading && (
+            <span className="text-sm text-muted-foreground">{feedback.text}</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Dashboard ───────────────────────────────────────────────────────────────
+
 export default function Dashboard() {
-  const { connected: sseConnected, rainsToday, lastRain, autoMsgStats, setUptime, setConnected } = useStore();
+  const { connected: sseConnected, rainsToday, lastRain, autoMsgStats, connectionError, setUptime, setConnected } = useStore();
 
   const { data: status } = useQuery({
     queryKey: ["status"],
@@ -59,6 +205,11 @@ export default function Dashboard() {
         <h1 className="text-2xl font-bold tracking-tight text-foreground">Dashboard</h1>
         <p className="text-sm text-muted-foreground mt-0.5">Status em tempo real do bot</p>
       </div>
+
+      {/* Card de renovação de token — aparece quando desconectado */}
+      {!connected && (
+        <TokenRenewalCard error={connectionError} />
+      )}
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <StatCard

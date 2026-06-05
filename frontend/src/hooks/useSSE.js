@@ -4,6 +4,7 @@ import { useStore } from "../store";
 export function useSSE() {
   const {
     setConnected,
+    setConnectionError,
     setSseConnected,
     addMessage,
     prependHistory,
@@ -45,6 +46,8 @@ export function useSSE() {
       es.addEventListener("status", (e) => {
         const data = JSON.parse(e.data);
         setConnected(data.connected);
+        // Guarda erro de conexão (token expirado, sem token, etc.)
+        setConnectionError(data.connected ? null : (data.error || data.reason || null));
       });
 
       es.addEventListener("message", (e) => {
