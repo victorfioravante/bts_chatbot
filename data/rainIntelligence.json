@@ -1,4 +1,91 @@
 {
-  "senders": {},
-  "hourPattern": [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
+  "senders": {
+    "tol0712": {
+      "rains": 1,
+      "lastRain": 1780416292,
+      "channels": {
+        "system": 1
+      },
+      "lastActive": 1780416292618,
+      "manuallyAdded": false
+    },
+    "macy123": {
+      "rains": 1,
+      "lastRain": 1780419785,
+      "channels": {
+        "system": 1
+      },
+      "lastActive": 1780419785107,
+      "manuallyAdded": false
+    },
+    "DzBank": {
+      "rains": 2,
+      "lastRain": 1780607030,
+      "channels": {
+        "system": 2
+      },
+      "lastActive": 1780607030936,
+      "manuallyAdded": false
+    },
+    "Romerito": {
+      "rains": 4,
+      "lastRain": 1780607496,
+      "channels": {
+        "system": 4,
+        "br": 14
+      },
+      "lastActive": 1780607496827,
+      "manuallyAdded": false
+    },
+    "hewerton": {
+      "rains": 3,
+      "lastRain": 1780453276,
+      "channels": {
+        "system": 3,
+        "br": 4
+      },
+      "lastActive": 1780453276692,
+      "manuallyAdded": false,
+      "lastBetTs": 1780452102080,
+      "lastBetReal": true,
+      "lastBetCurrency": "usdt",
+      "lastBetAmount": 0.408
+    },
+    "JHONNYZADA": {
+      "rains": 1,
+      "lastRain": 1780453249,
+      "channels": {
+        "system": 1,
+        "br": 2
+      },
+      "lastActive": 1780453263109,
+      "manuallyAdded": false
+    }
+  },
+  "hourPattern": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    1,
+    0,
+    0,
+    4,
+    8,
+    8,
+    1,
+    1,
+    0,
+    2
+  ]
 }
