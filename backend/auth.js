@@ -22,7 +22,35 @@
 const https = require("https");
 const http = require("http");
 const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
 const logger = require("./modules/logger");
+
+// ─── Persistência do último token recebido pelo relay/UI ────────────────────
+const LAST_TOKEN_PATH = path.join(__dirname, "../data/lastToken.json");
+
+function saveLastToken(token, fp) {
+  try {
+    fs.writeFileSync(LAST_TOKEN_PATH, JSON.stringify({
+      token,
+      fp: fp || null,
+      savedAt: Date.now(),
+    }));
+  } catch (e) {
+    logger.warn(`[Auth] Não foi possível salvar lastToken: ${e.message}`);
+  }
+}
+
+function loadLastToken() {
+  try {
+    if (!fs.existsSync(LAST_TOKEN_PATH)) return null;
+    const { token, fp, savedAt } = JSON.parse(fs.readFileSync(LAST_TOKEN_PATH, "utf-8"));
+    if (!token) return null;
+    return { token, fp, savedAt };
+  } catch {
+    return null;
+  }
+}
 
 const LOGIN_URL = process.env.BITSLER_LOGIN_URL || "https://www.bitsler.com/api/login";
 
@@ -368,7 +396,18 @@ const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hora
 let _browserToken = null;
 let _browserCookie = null; // "at=<value>" — cookie de sessão do Bitsler
 let _browserTokenAt = 0;
-const BROWSER_TOKEN_TTL_MS = 4 * 60 * 60 * 1000; // 4 horas
+const BROWSER_TOKEN_TTL_MS = 4 * 60 * 60 * 1000; // 4 horas — em memória
+
+// Carrega o último token recebido pelo relay (persiste entre restarts)
+(function restoreLastToken() {
+  const saved = loadLastToken();
+  if (!saved) return;
+  const ageMin = Math.round((Date.now() - saved.savedAt) / 60000);
+  logger.info(`[Auth] Último token do relay carregado (${ageMin}min atrás) — vai tentar na conexão.`);
+  _browserToken  = saved.token;
+  _browserTokenAt = saved.savedAt;
+  if (saved.fp) process.env.BITSLER_FINGERPRINT = saved.fp;
+})();
 
 // Cookie do login automático (obtido via Set-Cookie do /api/login)
 let _loginCookie = null;
@@ -383,6 +422,8 @@ function setBrowserToken(token, atCookie) {
     _browserTokenAt = Date.now();
     _envTokenInvalid = false; // novo token disponível — reabilita env como fallback futuro
     changed = true;
+    // Persiste em disco para sobreviver a restarts
+    saveLastToken(token, process.env.BITSLER_FINGERPRINT || null);
   }
   if (atCookie && atCookie !== _browserCookie) {
     _browserCookie = atCookie;
@@ -444,9 +485,12 @@ async function getSocketToken(forceRefresh = false) {
     }
   }
 
-  // 1. Token do browser/UI — SEMPRE tem prioridade quando válido (ignora forceRefresh)
-  if (_browserToken && Date.now() - _browserTokenAt < BROWSER_TOKEN_TTL_MS) {
-    logger.info("[Auth] Usando token do browser (UI/Tampermonkey).");
+  // 1. Token do browser/UI — tem prioridade quando válido (ignora forceRefresh)
+  //    TTL em memória: 4h; token carregado do disco: tenta sempre (se expirou o WS rejeita
+  //    e o clearCache() cuida de pedir um novo pelo relay)
+  if (_browserToken) {
+    const source = Date.now() - _browserTokenAt < BROWSER_TOKEN_TTL_MS ? "UI/Tampermonkey" : "disco (último relay)";
+    logger.info(`[Auth] Usando token do browser (${source}).`);
     return _browserToken;
   }
 
