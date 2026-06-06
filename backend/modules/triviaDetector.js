@@ -36,7 +36,7 @@ function loadData() {
 function saveData(data) {
   const clean = {};
   for (const t of THEMES) {
-    clean[t] = [...new Set(data[t])].sort((a, b) => a.localeCompare(b));
+    clean[t] = [...new Set(data[t].map((w) => w.toLowerCase()))].sort((a, b) => a.localeCompare(b));
   }
   fs.writeFileSync(WORDS_PATH, JSON.stringify(clean, null, 2));
   return clean;
@@ -50,20 +50,19 @@ function loadWords(theme) {
 }
 
 function addWord(word, theme = "crypto_terms") {
-  const trimmed = word.trim();
+  const trimmed = word.trim().toLowerCase();
   if (!trimmed || trimmed.length < 2) return null;
   if (!THEMES.includes(theme)) theme = "crypto_terms";
 
   const data = loadData();
-  const normalized = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
 
-  if (data[theme].some((w) => w.toLowerCase() === normalized.toLowerCase())) return null;
+  if (data[theme].includes(trimmed)) return null;
 
-  data[theme].push(normalized);
+  data[theme].push(trimmed);
   saveData(data);
-  logger.info(`[Trivia] Nova palavra adicionada: "${normalized}" (tema: ${theme})`);
-  eventBus.emit("triviaWordAdded", { word: normalized, theme });
-  return { word: normalized, theme };
+  logger.info(`[Trivia] Nova palavra adicionada: "${trimmed}" (tema: ${theme})`);
+  eventBus.emit("triviaWordAdded", { word: trimmed, theme });
+  return { word: trimmed, theme };
 }
 
 function removeWord(word, theme) {
