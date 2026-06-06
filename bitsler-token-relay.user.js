@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bitsler Token Relay
 // @namespace    bitsler-token-relay
-// @version      3.0.0
+// @version      3.1.0
 // @description  Captura o socketToken do Bitsler e envia automaticamente ao bot local
 // @author       victorfioravante
 // @match        https://www.bitsler.com/*
@@ -190,11 +190,35 @@
       });
   }
 
+  // ── Diagnóstico (abre console do DevTools para ver) ─────────────────────────
+  function diagnose() {
+    const store = window.__vue_store__;
+    const app   = window.__vue_app__ || document.querySelector('#app')?.__vue_app__;
+    console.group('[BTR] diagnóstico');
+    console.log('__vue_store__ existe?', !!store);
+    if (store) {
+      console.log('state keys:', Object.keys(store.state || {}));
+      console.log('state.chat?', !!store.state?.chat);
+      console.log('state.chat.user?', !!store.state?.chat?.user);
+      console.log('socketToken?', store.state?.chat?.user?.socketToken?.slice(0,12) || 'não encontrado');
+      console.log('fingerprint?', store.state?.chat?.user?.fingerprint || 'não encontrado');
+    }
+    console.log('__vue_app__ existe?', !!app);
+    console.log('_socketToken atual:', _socketToken?.slice(0,12) || 'nenhum');
+    console.groupEnd();
+  }
+
   // ── Watcher periódico ────────────────────────────────────────────────────────
   function startWatcher() {
     let ticks = 0;
-    setInterval(() => {
+    const interval = setInterval(() => {
       ticks++;
+
+      // Log de diagnóstico nas primeiras tentativas
+      if (ticks <= 5 || ticks % 10 === 0) {
+        console.log(`[BTR] tick ${ticks} — store:`, !!window.__vue_store__,
+          '— socketToken:', window.__vue_store__?.state?.chat?.user?.socketToken?.slice(0,12) || 'null');
+      }
 
       // Tenta store a cada tick enquanto não tiver token
       if (!_socketToken) {
@@ -203,7 +227,7 @@
           _socketToken = found.token;
           _fingerprint = found.fp || _fingerprint;
           _source      = found.source;
-          console.info(`[BTR] socketToken encontrado no store (${found.source}):`, found.token.slice(0, 12) + '…');
+          console.info(`[BTR] ✓ socketToken encontrado (${found.source}):`, found.token.slice(0, 12) + '…');
           scheduleSend();
         }
         return;
@@ -225,7 +249,11 @@
         console.info('[BTR] Reenvio periódico (55min)');
         doSend(true);
       }
-    }, 4000);
+    }, 2000); // a cada 2s (mais agressivo)
+
+    // Expõe diagnóstico global para rodar no console: window.btrDiag()
+    window.btrDiag = diagnose;
+    console.info('[BTR] iniciado — rode window.btrDiag() no console para diagnóstico');
   }
 
   // ── Badge UI ─────────────────────────────────────────────────────────────────
