@@ -140,12 +140,31 @@ function getTheme() {
 
 // ─── Message analysis ────────────────────────────────────────────────────────
 
-const TRIVIA_START_RE = /guess\s+the\s+(crypto|coin|bitsler|casino)/i;
 // Extrai sequência de 3+ tokens single-char/underscore separados por espaço dentro de qualquer texto
 const HINT_EXTRACT_RE = /\b([A-Za-z_](?:\s+[A-Za-z_]){2,})\b/;
-const GAME_OVER_RE = /game\s*over/i;
+const GAME_OVER_RE    = /game\s*over/i;
 // Captura answer mesmo com markdown bold/italic: **GAME OVER** *answer:* Token
-const ANSWER_RE = /answer[*:\s]+([a-zA-Z]+)/i;
+const ANSWER_RE       = /answer[*:\s]+([a-zA-Z]+)/i;
+
+// Mapeamento: palavra-chave no anúncio do Vvolfy → tema interno
+// Ordem importa — mais específico primeiro
+const THEME_KEYWORD_MAP = [
+  { re: /bitsler/i,                     theme: "bitsler_terms"  },
+  { re: /casino|gambling|slot/i,        theme: "casino_terms"   },
+  { re: /coin|coins|cryptocurrency|altcoin/i, theme: "top100_coins" },
+  { re: /blockchain|crypto|defi|nft/i,  theme: "crypto_terms"   },
+];
+
+// Detecta tema a partir do texto do anúncio de início do trivia
+// Ex: "Guess the Bitsler term!" → "bitsler_terms"
+const TRIVIA_START_RE = /guess\s+the\s+(\w[\w\s]{0,30}?)(?:\s*word|\s*term|\s*coin|\s*name|\s*crypto|\s*!|\s*$)/i;
+
+function detectThemeFromText(text) {
+  for (const { re, theme } of THEME_KEYWORD_MAP) {
+    if (re.test(text)) return theme;
+  }
+  return null;
+}
 
 function extractHint(text) {
   const m = text.match(HINT_EXTRACT_RE);
@@ -157,33 +176,82 @@ function resolveTheme(channel) {
   return channel === "br" ? "br_words" : activeTheme;
 }
 
-function analyze(msg) {
-  if (!triviaEnabled) return;
+// ���── Aprendizado passivo (sempre ativo, independente de triviaEnabled) ────────
+// Detecta: início do jogo (auto-theme), GAME OVER (salva palavra nova)
+function analyzePassive(msg) {
   const text = (msg.message || msg.comment || "").trim();
   if (!text) return;
 
-  const theme = resolveTheme(msg.channel);
+  const isBR = msg.channel === "br";
 
+  // GAME OVER → salva a palavra em qualquer canal (incluindo BR)
   if (GAME_OVER_RE.test(text)) {
     const answerMatch = text.match(ANSWER_RE);
     if (answerMatch) {
       const answer = answerMatch[1];
+      const theme  = resolveTheme(msg.channel);
       const result = addWord(answer, theme);
-      const event = {
-        type: "gameOver",
+      const event  = {
+        type:      "gameOver",
         answer,
         theme,
-        added: !!result,
-        channel: msg.channel,
+        added:     !!result,
+        channel:   msg.channel,
         timestamp: Date.now(),
       };
-      logger.info(`[Trivia] Jogo encerrado. Resposta: "${answer}" tema: ${theme} ${result ? "(adicionada)" : "(já existia)"}`);
+      logger.info(
+        `[Trivia] Jogo encerrado. Resposta: "${answer}" tema: ${theme} ` +
+        (result ? `(ADICIONADA ao banco)` : `(já existia)`)
+      );
       eventBus.emit("triviaEvent", event);
       activeGame = null;
     }
     return;
   }
 
+  if (isBR) return; // Detecção de tema automático só para canal EN
+
+  // Detecção de início + identificação automática do tema
+  const startMatch = text.match(TRIVIA_START_RE);
+  if (startMatch) {
+    const announced = startMatch[0]; // trecho completo do anúncio
+    const detected  = detectThemeFromText(announced) || detectThemeFromText(text);
+    if (detected && detected !== activeTheme) {
+      const prev = activeTheme;
+      activeTheme = detected;
+      logger.info(`[Trivia] Tema detectado automaticamente: "${detected}" (era: "${prev}") — anúncio: "${text.slice(0,80)}"`);
+      eventBus.emit("triviaEvent", {
+        type:      "themeDetected",
+        theme:     detected,
+        prevTheme: prev,
+        channel:   msg.channel,
+        raw:       text.slice(0, 120),
+        timestamp: Date.now(),
+      });
+    }
+    if (!activeGame) {
+      activeGame = { hint: null, suggestions: [], channel: msg.channel, startedAt: Date.now() };
+    }
+    logger.info(`[Trivia] Jogo detectado no canal ${msg.channel} (tema: ${activeTheme})`);
+    return;
+  }
+
+}
+
+function analyze(msg) {
+  // Aprendizado passivo SEMPRE (tema + palavras novas)
+  analyzePassive(msg);
+
+  // Sugestões ativas só quando habilitado
+  if (!triviaEnabled) return;
+
+  const text = (msg.message || msg.comment || "").trim();
+  if (!text) return;
+
+  // GAME OVER já tratado no passivo — evita duplo processamento
+  if (GAME_OVER_RE.test(text)) return;
+
+  const theme  = resolveTheme(msg.channel);
   const hintRaw = extractHint(text);
   if (hintRaw) {
     const hint = parseHint(hintRaw);
@@ -202,13 +270,7 @@ function analyze(msg) {
         channel,
         timestamp: Date.now(),
       });
-      return;
     }
-  }
-
-  if (TRIVIA_START_RE.test(text)) {
-    logger.info(`[Trivia] Jogo detectado no canal ${msg.channel} (tema: ${theme})`);
-    if (!activeGame) activeGame = { hint: null, suggestions: [], channel: msg.channel, startedAt: Date.now() };
   }
 }
 

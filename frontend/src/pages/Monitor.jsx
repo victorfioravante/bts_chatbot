@@ -282,7 +282,7 @@ const THEME_LABELS = {
   casino_terms: "Termos Casino",
 };
 
-function TriviaThemeSelect() {
+function TriviaThemeSelect({ triviaEvents }) {
   const qc = useQueryClient();
   const { data: themesData } = useQuery({
     queryKey: ["triviaThemes"],
@@ -298,18 +298,37 @@ function TriviaThemeSelect() {
       }).then((r) => r.json()),
     onSuccess: () => qc.invalidateQueries(["triviaThemes"]),
   });
+
+  // Quando chegar evento themeDetected, invalida a query para mostrar o novo tema
+  const lastDetect = triviaEvents?.find((e) => e.type === "themeDetected");
+  useEffect(() => {
+    if (lastDetect) qc.invalidateQueries(["triviaThemes"]);
+  }, [lastDetect?.theme]);
+
   const active = themesData?.active || "crypto_terms";
+  const autoDetected = lastDetect && lastDetect.theme === active;
+
   return (
-    <select
-      value={active}
-      onChange={(e) => setTheme.mutate(e.target.value)}
-      className="h-9 bg-input border border-border rounded-lg px-2 text-sm text-foreground font-mono shrink-0 focus:outline-none focus:border-primary"
-      title="Lista de palavras usada na Trivia"
-    >
-      {Object.entries(THEME_LABELS).map(([k, v]) => (
-        <option key={k} value={k}>{v}</option>
-      ))}
-    </select>
+    <div className="flex items-center gap-1.5">
+      <select
+        value={active}
+        onChange={(e) => setTheme.mutate(e.target.value)}
+        className="h-9 bg-input border border-border rounded-lg px-2 text-sm text-foreground font-mono shrink-0 focus:outline-none focus:border-primary"
+        title="Lista de palavras usada na Trivia"
+      >
+        {Object.entries(THEME_LABELS).map(([k, v]) => (
+          <option key={k} value={k}>{v}</option>
+        ))}
+      </select>
+      {autoDetected && (
+        <span
+          className="text-xs px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 border border-blue-500/20 font-mono whitespace-nowrap"
+          title={`Detectado automaticamente do chat: "${lastDetect.raw?.slice(0, 60)}"`}
+        >
+          🎯 auto
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -318,6 +337,21 @@ function TriviaBanner({ triviaEvents }) {
   const [sent, setSent] = useState(null);
 
   const last = triviaEvents[0];
+
+  // Notificação de tema detectado automaticamente
+  if (last?.type === "themeDetected") {
+    return (
+      <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl px-4 py-2.5 flex items-center gap-3 text-sm">
+        <span className="text-blue-400">🎯</span>
+        <span className="text-muted-foreground">Tema detectado automaticamente:</span>
+        <span className="font-mono font-bold text-blue-400">{THEME_LABELS[last.theme] || last.theme}</span>
+        {last.prevTheme && last.prevTheme !== last.theme && (
+          <span className="text-xs text-muted-foreground/60 font-mono">(era: {THEME_LABELS[last.prevTheme] || last.prevTheme})</span>
+        )}
+      </div>
+    );
+  }
+
   if (!last || (last.type !== "hint" && last.type !== "gameOver")) return null;
 
   const sendAnswer = (word, channel) => {
@@ -586,7 +620,7 @@ export default function Monitor() {
                 🇧🇷 PT-BR
               </span>
             ) : (
-              <TriviaThemeSelect />
+              <TriviaThemeSelect triviaEvents={triviaEvents} />
             )}
           </div>
 
@@ -683,7 +717,11 @@ export default function Monitor() {
         triviaEvents={
           selectedChannel === "todos"
             ? triviaEvents
-            : triviaEvents.filter((e) => !e.channel || e.channel === selectedChannel)
+            : triviaEvents.filter((e) =>
+                e.type === "themeDetected" ||
+                !e.channel ||
+                e.channel === selectedChannel
+              )
         }
       />
 
