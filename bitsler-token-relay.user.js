@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bitsler Token Relay
 // @namespace    bitsler-token-relay
-// @version      5.0.0
+// @version      5.1.0
 // @description  Captura o socketToken do Bitsler e envia automaticamente ao bot local
 // @author       victorfioravante
 // @match        https://www.bitsler.com/*
@@ -258,24 +258,87 @@
   }
 
   // ── Badge ─────────────────────────────────────────────────────────────────────
-  const CSS = `#btr{position:fixed;bottom:16px;right:16px;z-index:2147483647;display:flex;align-items:center;gap:6px;background:#0f172a;border:1px solid #1e293b;border-radius:999px;padding:5px 11px 5px 7px;font:11px/1 ui-monospace,monospace;color:#94a3b8;cursor:pointer;user-select:none;box-shadow:0 4px 16px rgba(0,0,0,.6)}#btr:hover{opacity:.8}#btr-d{width:7px;height:7px;border-radius:50%;background:#475569;flex-shrink:0}#btr-d.ok{background:#22c55e;box-shadow:0 0 5px #22c55e99}#btr-d.error{background:#ef4444;box-shadow:0 0 5px #ef444499}#btr-d.pending{background:#f59e0b;animation:btr-p .7s ease-in-out infinite alternate}@keyframes btr-p{from{opacity:1}to{opacity:.25}}`;
+  // Visível enquanto aguarda/envia. Após conectar: some em 2s.
+  // Em erro: reaparece com destaque. Hover no canto sempre mostra o ponto.
+  const CSS = `
+    #btr {
+      position: fixed; bottom: 16px; right: 16px; z-index: 2147483647;
+      display: flex; align-items: center; gap: 6px;
+      background: #0f172a; border: 1px solid #1e293b; border-radius: 999px;
+      padding: 5px 11px 5px 7px; font: 11px/1 ui-monospace,monospace;
+      color: #94a3b8; cursor: pointer; user-select: none;
+      box-shadow: 0 4px 16px rgba(0,0,0,.6);
+      transition: opacity .4s, transform .4s;
+    }
+    #btr.hidden {
+      opacity: 0; pointer-events: none; transform: translateY(6px);
+    }
+    #btr.ghost {
+      opacity: 0; pointer-events: none; transform: translateY(0);
+    }
+    /* Zona de hover invisível no canto — revela o badge quando o mouse passa */
+    #btr-hover-zone {
+      position: fixed; bottom: 0; right: 0; width: 40px; height: 40px;
+      z-index: 2147483646; cursor: default;
+    }
+    #btr-hover-zone:hover ~ #btr,
+    #btr:hover {
+      opacity: 1 !important; pointer-events: auto !important; transform: translateY(0) !important;
+    }
+    #btr-d {
+      width: 7px; height: 7px; border-radius: 50%; background: #475569; flex-shrink: 0;
+      transition: background .25s;
+    }
+    #btr-d.ok      { background: #22c55e; box-shadow: 0 0 5px #22c55e99; }
+    #btr-d.error   { background: #ef4444; box-shadow: 0 0 5px #ef444499; }
+    #btr-d.pending { background: #f59e0b; animation: btr-p .7s ease-in-out infinite alternate; }
+    @keyframes btr-p { from{opacity:1} to{opacity:.25} }
+  `;
+
+  let _hideTimer = null;
 
   function boot() {
     const s = document.createElement('style'); s.textContent = CSS;
     document.head.appendChild(s);
+
+    // Zona de hover invisível (mostra badge ao passar o mouse no canto)
+    const zone = document.createElement('div'); zone.id = 'btr-hover-zone';
+    document.body.appendChild(zone);
+
     const el = document.createElement('div'); el.id = 'btr';
     el.innerHTML = '<span id="btr-d"></span><span id="btr-l">Bot Relay</span>';
     el.title = 'clique para reenviar';
     el.onclick = () => { if (_lastSent) sendToken(_lastSent, null, 'manual'); };
     document.body.appendChild(el);
+
     setStatus('pending', 'Aguardando…');
   }
 
   function setStatus(state, text) {
-    const d = document.getElementById('btr-d');
-    const l = document.getElementById('btr-l');
+    const el = document.getElementById('btr');
+    const d  = document.getElementById('btr-d');
+    const l  = document.getElementById('btr-l');
+    if (!el) return;
     if (d) d.className = state;
     if (l) l.textContent = text;
+
+    // Cancela hide timer anterior
+    if (_hideTimer) { clearTimeout(_hideTimer); _hideTimer = null; }
+
+    if (state === 'ok') {
+      // Mostra brevemente "✓ Conectado" depois some — fica invisível mas
+      // reaparece ao passar o mouse no canto inferior direito
+      el.classList.remove('hidden', 'ghost');
+      _hideTimer = setTimeout(() => {
+        el.classList.add('hidden');
+      }, 2000);
+    } else if (state === 'error') {
+      // Erro: fica visível até o usuário notar
+      el.classList.remove('hidden', 'ghost');
+    } else {
+      // pending / aguardando: visível normalmente
+      el.classList.remove('hidden', 'ghost');
+    }
   }
 
   if (document.readyState === 'loading') {
