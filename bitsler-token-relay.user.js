@@ -1,283 +1,248 @@
 // ==UserScript==
 // @name         Bitsler Token Relay
 // @namespace    bitsler-token-relay
-// @version      1.1.0
-// @description  Extrai automaticamente o socketToken do Bitsler e envia ao bot local
+// @version      2.0.0
+// @description  Intercepta o access_token do Bitsler e envia automaticamente ao bot local
 // @author       victorfioravante
 // @match        https://www.bitsler.com/*
-// @grant        GM_setValue
-// @grant        GM_getValue
-// @grant        GM_xmlhttpRequest
-// @grant        GM_addStyle
-// @grant        GM_registerMenuCommand
-// @grant        unsafeWindow
-// @connect      localhost
-// @connect      127.0.0.1
-// @run-at       document-idle
+// @match        https://bitsler.com/*
+// @grant        none
+// @run-at       document-start
+// @noframes
 // ==/UserScript==
 
 (function () {
   'use strict';
 
-  // ─── Configuração ─────────────────────────────────────────────────────────
-  const DEFAULTS = {
-    botUrl:        'http://localhost:3001',  // URL base do bot
-    autoSend:      true,                     // envia automaticamente ao detectar token
-    watchInterval: 60,                       // verifica mudanças a cada N segundos
-    sendOnChange:  true,                     // reenvia se o token mudar
-  };
+  const BOT_URL      = 'http://localhost:3001';
+  const SEND_DELAY   = 800;   // ms após capturar antes de enviar (evita flood)
+  const RESEND_AFTER = 55 * 60 * 1000; // reenvia se ficar 55min sem enviar (renovação)
 
-  function cfg(key) {
-    return GM_getValue(key, DEFAULTS[key]);
-  }
+  // ── Estado ──────────────────────────────────────────────────────────────────
+  let _token       = null;
+  let _source      = null;   // 'intercept' | 'store' | 'storage'
+  let _lastSent    = null;
+  let _lastSentAt  = 0;
+  let _sendTimer   = null;
+  let _badge       = null;
 
-  // ─── Estado ───────────────────────────────────────────────────────────────
-  let lastSentToken = null;
-  let statusEl      = null;
-  let watchTimer    = null;
-
-  // ─── Estilos ──────────────────────────────────────────────────────────────
-  GM_addStyle(`
-    #btr-badge {
-      position: fixed;
-      bottom: 18px;
-      right: 18px;
-      z-index: 999999;
-      display: flex;
-      align-items: center;
-      gap: 7px;
-      background: #0f172a;
-      border: 1px solid #1e293b;
-      border-radius: 999px;
-      padding: 6px 12px 6px 8px;
-      font-family: ui-monospace, monospace;
-      font-size: 11px;
-      color: #94a3b8;
-      cursor: pointer;
-      user-select: none;
-      box-shadow: 0 4px 16px rgba(0,0,0,.5);
-      transition: opacity .2s;
+  // ── Extração de token de qualquer formato de body/header ────────────────────
+  function tryExtract(body, headers) {
+    // body string form-encoded
+    if (typeof body === 'string' && body.includes('access_token')) {
+      const t = new URLSearchParams(body).get('access_token');
+      if (t && t.length > 10) return t;
     }
-    #btr-badge:hover { opacity: .85; }
-    #btr-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: #475569;
-      flex-shrink: 0;
-      transition: background .3s;
+    // body JSON
+    if (typeof body === 'string' && body.startsWith('{')) {
+      try { const t = JSON.parse(body)?.access_token; if (t) return t; } catch {}
     }
-    #btr-dot.ok      { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
-    #btr-dot.error   { background: #ef4444; box-shadow: 0 0 6px #ef444488; }
-    #btr-dot.pending { background: #f59e0b; box-shadow: 0 0 6px #f59e0b88; }
-    #btr-dot.pulse   { animation: btr-pulse .8s ease-in-out infinite alternate; }
-    @keyframes btr-pulse {
-      from { opacity: 1; } to { opacity: .3; }
+    // URLSearchParams
+    if (body instanceof URLSearchParams) {
+      const t = body.get('access_token'); if (t) return t;
     }
-  `);
-
-  // ─── Badge ─────────────────────────────────────────────────────────────────
-  function createBadge() {
-    const el = document.createElement('div');
-    el.id = 'btr-badge';
-    el.innerHTML = `<span id="btr-dot"></span><span id="btr-label">Bot Relay</span>`;
-    el.title = 'Bitsler Token Relay — clique para enviar agora';
-    el.addEventListener('click', () => sendToken(true));
-    document.body.appendChild(el);
-    statusEl = el;
-    return el;
-  }
-
-  function setStatus(state, text) {
-    const dot   = document.getElementById('btr-dot');
-    const label = document.getElementById('btr-label');
-    if (!dot || !label) return;
-    dot.className   = '';
-    dot.classList.add(state);
-    if (state === 'pending') dot.classList.add('pulse');
-    label.textContent = text;
-  }
-
-  // ─── Extração do token ─────────────────────────────────────────────────────
-  // unsafeWindow = janela real da página (Tampermonkey isola o window padrão)
-  const pageWindow = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
-
-  function extractToken() {
-    try {
-      // Fonte 1: Vue store (principal)
-      const store = pageWindow.__vue_store__ || pageWindow.__store__;
-      if (store?.state?.chat?.user?.socketToken) {
-        return {
-          token:       store.state.chat.user.socketToken,
-          fingerprint: store.state.chat.user.fingerprint || null,
-          username:    store.state.chat.user.username    || null,
-        };
-      }
-
-      // Fonte 2: injeção via script inline (garante acesso mesmo com CSP laxo)
-      // Lê variável temporária que injetamos na página
-      if (pageWindow.__btr_token__) {
-        const t = pageWindow.__btr_token__;
-        return { token: t.token, fingerprint: t.fp || null, username: t.user || null };
-      }
-
-      // Fonte 3: localStorage da página
-      const ls = pageWindow.localStorage;
-      for (const key of Object.keys(ls)) {
-        if (key.toLowerCase().includes('token')) {
-          const raw = ls.getItem(key);
-          if (raw && raw.length > 30 && /^[a-f0-9]{32,}$/i.test(raw)) {
-            return { token: raw, fingerprint: null, username: null };
-          }
-        }
-      }
-    } catch (e) {
-      console.warn('[BTR] Erro ao extrair token:', e);
+    // FormData
+    if (typeof FormData !== 'undefined' && body instanceof FormData) {
+      const t = body.get?.('access_token'); if (t) return t;
+    }
+    // Authorization header
+    const auth = (headers?.['Authorization'] || headers?.['authorization'] || '');
+    if (auth) {
+      const t = auth.replace(/^Bearer\s+/i, '');
+      if (t.length > 10) return t;
     }
     return null;
   }
 
-  // Injeta script inline na página para ler o store e expor via variável global
-  function injectPageBridge() {
-    try {
-      const script = document.createElement('script');
-      script.textContent = `
-        (function() {
-          function tryExpose() {
-            const s = window.__vue_store__ || window.__store__;
-            if (s && s.state && s.state.chat && s.state.chat.user && s.state.chat.user.socketToken) {
-              window.__btr_token__ = {
-                token: s.state.chat.user.socketToken,
-                fp:    s.state.chat.user.fingerprint || null,
-                user:  s.state.chat.user.username    || null,
-              };
-              return true;
-            }
-            return false;
-          }
-          // Tenta agora e depois de 2s, 5s, 10s
-          if (!tryExpose()) {
-            [2000, 5000, 10000].forEach(d => setTimeout(tryExpose, d));
-          }
-        })();
-      `;
-      document.head.appendChild(script);
-      script.remove();
-    } catch(e) {
-      console.warn('[BTR] Bridge inject falhou:', e);
+  // ── Monkey-patch fetch ───────────────────────────────────────────────────────
+  // Roda em document-start, antes de qualquer código Bitsler — intercepta tudo
+  const _origFetch = window.fetch;
+  window.fetch = function (input, init) {
+    const url = typeof input === 'string' ? input : (input?.url || '');
+    if (url.includes('/api/')) {
+      const t = tryExtract(init?.body, init?.headers);
+      if (t && t !== _token) { _token = t; _source = 'intercept'; scheduleSend(); }
     }
+    return _origFetch.apply(this, arguments);
+  };
+
+  // ── Monkey-patch XMLHttpRequest ──────────────────────────────────────────────
+  const _OrigXHR = window.XMLHttpRequest;
+  window.XMLHttpRequest = function () {
+    const xhr = new _OrigXHR();
+    const origOpen = xhr.open.bind(xhr);
+    xhr.open = function (m, u) { xhr._url = u; return origOpen.apply(this, arguments); };
+    const origSend = xhr.send.bind(xhr);
+    xhr.send = function (body) {
+      if (xhr._url?.includes('/api/')) {
+        const t = tryExtract(body, {});
+        if (t && t !== _token) { _token = t; _source = 'intercept'; scheduleSend(); }
+      }
+      return origSend.apply(this, arguments);
+    };
+    return xhr;
+  };
+  window.XMLHttpRequest.prototype = _OrigXHR.prototype;
+
+  // ── Busca no Vue store / localStorage (fallback) ────────────────────────────
+  function isToken(v) {
+    return typeof v === 'string' && v.length > 15 && !v.includes(' ') && !v.startsWith('http');
   }
 
-  // ─── Envio ao bot ──────────────────────────────────────────────────────────
-  function sendToken(force = false) {
-    const extracted = extractToken();
-    if (!extracted) {
-      setStatus('error', 'Sem token');
-      return;
+  function findInObj(obj, depth) {
+    if (!obj || typeof obj !== 'object' || depth > 6) return null;
+    for (const k of Object.keys(obj)) {
+      const kl = k.toLowerCase();
+      if ((kl.includes('token') || kl.includes('access')) && isToken(obj[k])) return obj[k];
+      const r = findInObj(obj[k], depth + 1);
+      if (r) return r;
     }
+    return null;
+  }
 
-    const { token, fingerprint, username } = extracted;
+  function searchStore() {
+    // Vue 2
+    try {
+      if (window.__vue_store__) {
+        const t = findInObj(window.__vue_store__.state, 0);
+        if (t) return { token: t, source: 'store' };
+      }
+    } catch {}
+    // Vue 3
+    try {
+      const app = window.__vue_app__ || document.querySelector('#app')?.__vue_app__;
+      if (app) {
+        const t = findInObj(app.config?.globalProperties?.$store?.state, 0);
+        if (t) return { token: t, source: 'store' };
+      }
+    } catch {}
+    // localStorage / sessionStorage
+    for (const st of [localStorage, sessionStorage]) {
+      try {
+        for (let i = 0; i < st.length; i++) {
+          const k = st.key(i); if (!k) continue;
+          const kl = k.toLowerCase();
+          const v = st.getItem(k); if (!v) continue;
+          if ((kl.includes('token') || kl.includes('access')) && isToken(v))
+            return { token: v, source: 'storage' };
+          if (v.startsWith('{')) {
+            try {
+              const t = findInObj(JSON.parse(v), 0);
+              if (t) return { token: t, source: 'storage' };
+            } catch {}
+          }
+        }
+      } catch {}
+    }
+    return null;
+  }
 
-    // Não reenvia o mesmo token, a menos que seja forçado
-    if (!force && token === lastSentToken) return;
+  // ── Envio ao bot ─────────────────────────────────────────────────────────────
+  function scheduleSend() {
+    if (_sendTimer) clearTimeout(_sendTimer);
+    _sendTimer = setTimeout(doSend, SEND_DELAY);
+  }
+
+  function doSend(force = false) {
+    if (!_token) return;
+    if (!force && _token === _lastSent) return;
 
     setStatus('pending', 'Enviando…');
 
-    const payload = { token, autoConnect: true };
-    if (fingerprint) payload.fingerprint = fingerprint;
-
-    const botUrl = cfg('botUrl').replace(/\/$/, '');
-
-    GM_xmlhttpRequest({
+    // @grant none: usa fetch normal — funciona para localhost (sem CORS restrito)
+    fetch(`${BOT_URL}/api/v1/socket-token`, {
       method:  'POST',
-      url:     `${botUrl}/api/v1/socket-token`,
       headers: { 'Content-Type': 'application/json' },
-      data:    JSON.stringify(payload),
-      timeout: 6000,
-      onload(res) {
-        try {
-          const data = JSON.parse(res.responseText);
-          if (data.ok) {
-            lastSentToken = token;
-            const label = username ? `✓ ${username}` : '✓ Token enviado';
-            setStatus('ok', label);
-            console.info('[BTR] Token enviado com sucesso', data.isNew ? '(novo)' : '(mesmo)');
-          } else {
-            setStatus('error', `Rejeitado`);
-            console.warn('[BTR] Bot rejeitou token:', data.error);
-          }
-        } catch {
-          setStatus('error', 'Resposta inválida');
+      body:    JSON.stringify({ token: _token, autoConnect: true }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok) {
+          _lastSent   = _token;
+          _lastSentAt = Date.now();
+          setStatus('ok', `✓ Token enviado`);
+          console.info(`[BTR] Token enviado (${_source})`, data.isNew ? '— novo' : '— já conhecido');
+        } else {
+          setStatus('error', 'Rejeitado');
+          console.warn('[BTR] Bot rejeitou:', data.error);
         }
-      },
-      onerror() {
+      })
+      .catch(() => {
         setStatus('error', 'Bot offline?');
-        console.warn('[BTR] Não conseguiu conectar ao bot em', botUrl);
-      },
-      ontimeout() {
-        setStatus('error', 'Timeout');
-      },
-    });
+        console.warn('[BTR] Bot não respondeu em', BOT_URL);
+      });
   }
 
-  // ─── Watcher ───────────────────────────────────────────────────────────────
+  // ── Watcher periódico: tenta store se intercept ainda não pegou ──────────────
   function startWatcher() {
-    if (watchTimer) clearInterval(watchTimer);
-    const interval = Math.max(10, cfg('watchInterval')) * 1000;
-    watchTimer = setInterval(() => {
-      if (cfg('sendOnChange')) sendToken(false);
-    }, interval);
+    setInterval(() => {
+      // Já capturou por intercept — só reenvia se ficar muito tempo sem enviar
+      if (_token) {
+        if (Date.now() - _lastSentAt > RESEND_AFTER) doSend(true);
+        return;
+      }
+      // Ainda não tem token — tenta store/storage
+      const found = searchStore();
+      if (found) {
+        _token  = found.token;
+        _source = found.source;
+        scheduleSend();
+      }
+    }, 5000);
   }
 
-  // ─── Menu de configuração (clique direito no ícone Tampermonkey) ───────────
-  GM_registerMenuCommand('⚙️  Configurar Bot URL', () => {
-    const current = cfg('botUrl');
-    const url = prompt('URL base do bot (ex: http://localhost:3001):', current);
-    if (url && url.trim()) GM_setValue('botUrl', url.trim());
-  });
+  // ── Badge ─────────────────────────────────────────────────────────────────────
+  const STYLES = `
+    #btr {
+      position:fixed; bottom:16px; right:16px; z-index:2147483647;
+      display:flex; align-items:center; gap:6px;
+      background:#0f172a; border:1px solid #1e293b; border-radius:999px;
+      padding:5px 11px 5px 7px; font:11px/1 ui-monospace,monospace;
+      color:#94a3b8; cursor:pointer; user-select:none;
+      box-shadow:0 4px 16px rgba(0,0,0,.6); transition:opacity .15s;
+    }
+    #btr:hover { opacity:.8; }
+    #btr-d {
+      width:7px; height:7px; border-radius:50%; background:#475569; flex-shrink:0;
+      transition:background .25s;
+    }
+    #btr-d.ok      { background:#22c55e; box-shadow:0 0 5px #22c55e99; }
+    #btr-d.error   { background:#ef4444; box-shadow:0 0 5px #ef444499; }
+    #btr-d.pending { background:#f59e0b; animation:btr-p .7s ease-in-out infinite alternate; }
+    @keyframes btr-p { from{opacity:1} to{opacity:.25} }
+  `;
 
-  GM_registerMenuCommand('🔄 Enviar token agora', () => sendToken(true));
+  function createBadge() {
+    const s = document.createElement('style'); s.textContent = STYLES;
+    document.head.appendChild(s);
+    _badge = document.createElement('div'); _badge.id = 'btr';
+    _badge.innerHTML = '<span id="btr-d"></span><span id="btr-l">Bot Relay</span>';
+    _badge.title = 'Bitsler Token Relay — clique para forçar envio';
+    _badge.onclick = () => { const f = searchStore(); if (f) { _token = f.token; _source = f.source; } doSend(true); };
+    document.body.appendChild(_badge);
+  }
 
-  GM_registerMenuCommand('⏸  Toggle auto-envio', () => {
-    const v = !cfg('autoSend');
-    GM_setValue('autoSend', v);
-    alert(`Auto-envio: ${v ? 'ativado' : 'desativado'}`);
-  });
+  function setStatus(state, text) {
+    const d = document.getElementById('btr-d');
+    const l = document.getElementById('btr-l');
+    if (!d) return;
+    d.className = state;
+    if (l) l.textContent = text;
+  }
 
-  // ─── Init ─────────────────────────────────────────────────────────────────
-  function init() {
+  // ── Boot ──────────────────────────────────────────────────────────────────────
+  // Patches já aplicados em document-start.
+  // Badge e watcher sobem quando o DOM fica pronto.
+  function boot() {
     createBadge();
     setStatus('pending', 'Aguardando…');
-
-    // Injeta bridge na página para contornar sandbox do Tampermonkey
-    injectPageBridge();
-
-    // Aguarda o Vue store ser populado (login pode demorar)
-    let attempts = 0;
-    const MAX = 40; // até 40s
-    const poll = setInterval(() => {
-      attempts++;
-      const extracted = extractToken();
-
-      if (extracted) {
-        clearInterval(poll);
-        setStatus('ok', 'Token detectado');
-
-        if (cfg('autoSend')) {
-          setTimeout(() => sendToken(false), 500);
-        }
-        startWatcher();
-      } else if (attempts >= MAX) {
-        clearInterval(poll);
-        setStatus('error', 'Não logado?');
-      }
-    }, 1000);
+    startWatcher();
   }
 
-  // Aguarda DOM pronto
-  if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    setTimeout(init, 1500);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
   } else {
-    window.addEventListener('DOMContentLoaded', () => setTimeout(init, 1500));
+    boot();
   }
 
 })();
