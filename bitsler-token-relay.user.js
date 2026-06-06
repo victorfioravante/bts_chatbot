@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bitsler Token Relay
 // @namespace    bitsler-token-relay
-// @version      4.0.0
+// @version      5.0.0
 // @description  Captura o socketToken do Bitsler e envia automaticamente ao bot local
 // @author       victorfioravante
 // @match        https://www.bitsler.com/*
@@ -18,7 +18,6 @@
 (function () {
   'use strict';
 
-  // ── Configuração ─────────────────────────────────────────────────────────────
   const BOT_URL      = GM_getValue('botUrl', 'http://localhost:3001');
   const RESEND_AFTER = 55 * 60 * 1000;
 
@@ -26,134 +25,211 @@
   let _lastSentAt = 0;
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // PARTE 1 — Código injetado na página (Main World)
-  // Roda no contexto real do site, tem acesso a window.__vue_store__, fetch, XHR.
-  // Comunica com o script Tampermonkey via CustomEvent.
+  // Script injetado no Main World da página
+  // Intercepta fetch/XHR para capturar o header "authorization" que o próprio
+  // Bitsler envia ao conectar no Socket.IO (ws.bitsler.com/chat/).
+  // O mesmo token usado pelo site é o que nosso bot precisa.
   // ─────────────────────────────────────────────────────────────────────────────
   function injectPageScript() {
-    const script = document.createElement('script');
-    script.setAttribute('data-btr', '1');
-    script.textContent = `(function() {
+    const code = `(function() {
   'use strict';
 
-  function emit(token, fp, source) {
-    window.dispatchEvent(new CustomEvent('__btr_token__', {
-      detail: { token: token, fp: fp || null, source: source }
-    }));
-  }
+  var _emitted = null;
 
   function isToken(v) {
     return typeof v === 'string' && v.length > 15 && !/\\s/.test(v) && !v.startsWith('http');
   }
 
-  // Busca socketToken no Vue store (caminho direto)
-  function fromStore() {
-    try {
-      // Vue 2 global store
-      var s = window.__vue_store__;
-      if (s && s.state && s.state.chat && s.state.chat.user) {
-        var u = s.state.chat.user;
-        if (isToken(u.socketToken)) return { t: u.socketToken, fp: u.fingerprint || null };
-      }
-    } catch(e) {}
-    try {
-      // Vue 3
-      var app = window.__vue_app__ || (document.querySelector('#app') && document.querySelector('#app').__vue_app__);
-      if (app && app.config && app.config.globalProperties && app.config.globalProperties.$store) {
-        var st = app.config.globalProperties.$store.state;
-        if (st && st.chat && st.chat.user && isToken(st.chat.user.socketToken)) {
-          return { t: st.chat.user.socketToken, fp: st.chat.user.fingerprint || null };
-        }
-      }
-    } catch(e) {}
-    return null;
+  function emit(token, fp, source) {
+    if (token === _emitted) return;
+    _emitted = token;
+    window.dispatchEvent(new CustomEvent('__btr__', {
+      detail: { token: token, fp: fp || null, source: source }
+    }));
+    console.log('[BTR-page] token capturado via', source, token.slice(0,12) + '...');
   }
 
-  // Intercepta respostas fetch para capturar socketToken
+  // Normaliza headers (pode ser objeto ou Headers)
+  function getHeader(headers, name) {
+    if (!headers) return null;
+    if (typeof headers.get === 'function') return headers.get(name) || headers.get(name.toLowerCase());
+    return headers[name] || headers[name.toLowerCase()] || null;
+  }
+
+  // Verifica se URL é de conexão Socket.IO do Bitsler
+  function isSocketUrl(url) {
+    return typeof url === 'string' && (
+      url.indexOf('ws.bitsler.com') !== -1 ||
+      url.indexOf('/chat/?') !== -1 ||
+      url.indexOf('/chat/') !== -1
+    );
+  }
+
+  // ── Intercepta fetch ────────────────────────────────────────────────────────
   var _origFetch = window.fetch;
   window.fetch = function(input, init) {
-    var result = _origFetch.apply(this, arguments);
     var url = typeof input === 'string' ? input : (input && input.url) || '';
-    if (url.indexOf('/api/') !== -1) {
-      result.then(function(res) {
+    var headers = (init && init.headers) || {};
+
+    // Captura authorization header dos requests ao Socket.IO
+    var auth = getHeader(headers, 'authorization');
+    var fp   = getHeader(headers, 'fp');
+    if (auth && isToken(auth) && isSocketUrl(url)) {
+      emit(auth, fp, 'ws-fetch-header');
+    }
+
+    // Captura socketToken de respostas JSON de qualquer /api/
+    var prom = _origFetch.apply(this, arguments);
+    if (url.indexOf('/api/') !== -1 || url.indexOf('bitsler.com') !== -1) {
+      prom.then(function(res) {
         res.clone().json().then(function(data) {
-          var st = data && (data.socketToken || (data.data && data.data.socketToken) || (data.user && data.user.socketToken));
-          var fp = data && (data.fingerprint || (data.user && data.user.fingerprint));
-          if (st && isToken(st)) emit(st, fp, 'fetch-response');
+          var st = data && (
+            data.socketToken ||
+            (data.data && data.data.socketToken) ||
+            (data.user && data.user.socketToken)
+          );
+          var rfp = data && (data.fingerprint || (data.user && data.user.fingerprint));
+          if (st && isToken(st)) emit(st, rfp, 'fetch-response');
         }).catch(function(){});
       }).catch(function(){});
     }
-    return result;
+    return prom;
   };
 
-  // Intercepta XHR responses
+  // ── Intercepta XHR ──────────────────────────────────────────────────────────
   var _OrigXHR = window.XMLHttpRequest;
   window.XMLHttpRequest = function() {
     var xhr = new _OrigXHR();
+    var _url = '';
+    var _auth = null;
+    var _fp = null;
+
+    var origOpen = xhr.open.bind(xhr);
+    xhr.open = function(m, u) { _url = u; return origOpen.apply(this, arguments); };
+
+    var origSetHeader = xhr.setRequestHeader.bind(xhr);
+    xhr.setRequestHeader = function(name, value) {
+      var nl = name.toLowerCase();
+      if (nl === 'authorization') _auth = value;
+      if (nl === 'fp') _fp = value;
+      return origSetHeader.apply(this, arguments);
+    };
+
+    var origSend = xhr.send.bind(xhr);
+    xhr.send = function(body) {
+      // Captura auth header no momento do envio (Socket.IO polling)
+      if (_auth && isToken(_auth) && isSocketUrl(_url)) {
+        emit(_auth, _fp, 'ws-xhr-header');
+      }
+      return origSend.apply(this, arguments);
+    };
+
+    // Captura socketToken na resposta
     xhr.addEventListener('load', function() {
       try {
         var data = JSON.parse(xhr.responseText);
-        var st = data && (data.socketToken || (data.data && data.data.socketToken) || (data.user && data.user.socketToken));
-        var fp = data && (data.fingerprint || (data.user && data.user.fingerprint));
-        if (st && isToken(st)) emit(st, fp, 'xhr-response');
+        var st = data && (
+          data.socketToken ||
+          (data.data && data.data.socketToken) ||
+          (data.user && data.user.socketToken)
+        );
+        var rfp = data && (data.fingerprint || (data.user && data.user.fingerprint));
+        if (st && isToken(st)) emit(st, rfp, 'xhr-response');
       } catch(e) {}
     });
+
     return xhr;
   };
   window.XMLHttpRequest.prototype = _OrigXHR.prototype;
 
-  // Watcher: verifica store a cada 2s
-  var _lastEmit = null;
-  setInterval(function() {
-    var found = fromStore();
-    if (found && found.t !== _lastEmit) {
-      _lastEmit = found.t;
-      emit(found.t, found.fp, 'store-watch');
+  // ── Watcher: tenta múltiplas fontes a cada 3s ────────────────────────────────
+  function scanAll() {
+    // Vue store (qualquer versão)
+    var paths = [
+      function() { return window.__vue_store__ && window.__vue_store__.state && window.__vue_store__.state.chat && window.__vue_store__.state.chat.user && { t: window.__vue_store__.state.chat.user.socketToken, fp: window.__vue_store__.state.chat.user.fingerprint }; },
+      function() { var a = window.__vue_app__ || (document.querySelector('#app') && document.querySelector('#app').__vue_app__); return a && a.config && a.config.globalProperties && a.config.globalProperties.$store && a.config.globalProperties.$store.state && a.config.globalProperties.$store.state.chat && a.config.globalProperties.$store.state.chat.user && { t: a.config.globalProperties.$store.state.chat.user.socketToken, fp: a.config.globalProperties.$store.state.chat.user.fingerprint }; },
+    ];
+    for (var i = 0; i < paths.length; i++) {
+      try {
+        var r = paths[i]();
+        if (r && isToken(r.t)) { emit(r.t, r.fp, 'store-scan'); return; }
+      } catch(e) {}
     }
-  }, 2000);
 
-  // Diagnóstico global (rode __btrPageDiag() no console)
-  window.__btrPageDiag = function() {
-    var s = window.__vue_store__;
-    console.group('[BTR-page] diagnóstico Main World');
-    console.log('__vue_store__?', !!s);
-    if (s) {
-      console.log('state keys:', Object.keys(s.state || {}));
-      console.log('socketToken?', s.state && s.state.chat && s.state.chat.user && s.state.chat.user.socketToken
-        ? s.state.chat.user.socketToken.slice(0,12) + '...' : 'não encontrado');
+    // localStorage / sessionStorage
+    var stores = [localStorage, sessionStorage];
+    for (var s = 0; s < stores.length; s++) {
+      try {
+        for (var k = 0; k < stores[s].length; k++) {
+          var key = stores[s].key(k);
+          var val = stores[s].getItem(key);
+          if (!val) continue;
+          if (key === 'socketToken' && isToken(val)) { emit(val, null, 'storage-key'); return; }
+          if (val.charAt(0) === '{') {
+            try {
+              var obj = JSON.parse(val);
+              var st2 = obj && (obj.socketToken || (obj.user && obj.user.socketToken) || (obj.chat && obj.chat.user && obj.chat.user.socketToken));
+              if (st2 && isToken(st2)) { emit(st2, null, 'storage-json'); return; }
+            } catch(e) {}
+          }
+        }
+      } catch(e) {}
     }
-    console.log('fromStore():', fromStore());
+
+    // Cookies (alguns tokens ficam em cookie)
+    try {
+      var cookies = document.cookie.split(';');
+      for (var c = 0; c < cookies.length; c++) {
+        var parts = cookies[c].trim().split('=');
+        var cname = parts[0].toLowerCase();
+        var cval = parts.slice(1).join('=');
+        if (cname.indexOf('token') !== -1 && isToken(cval)) {
+          emit(decodeURIComponent(cval), null, 'cookie'); return;
+        }
+      }
+    } catch(e) {}
+  }
+
+  setInterval(scanAll, 3000);
+  setTimeout(scanAll, 500); // tenta cedo tb
+
+  // Diagnóstico global
+  window.__btrPageDiag = function() {
+    console.group('[BTR-page] diagnóstico');
+    console.log('__vue_store__:', typeof window.__vue_store__, !!window.__vue_store__);
+    console.log('__vue_app__:', !!window.__vue_app__);
+    console.log('socketToken via store:', (function() {
+      try { return window.__vue_store__ && window.__vue_store__.state.chat.user.socketToken; } catch(e) { return 'erro: ' + e.message; }
+    })());
+    var lsKeys = [];
+    try { for (var i=0; i<localStorage.length; i++) lsKeys.push(localStorage.key(i)); } catch(e) {}
+    console.log('localStorage keys:', lsKeys);
+    console.log('cookie names:', document.cookie.split(';').map(function(c){return c.split('=')[0].trim();}));
     console.groupEnd();
   };
 
-  console.log('[BTR-page] injetado no Main World — rode __btrPageDiag() para diagnóstico');
+  console.log('[BTR-page] v5 ativo no Main World — rode __btrPageDiag() para diagnóstico');
 })();`;
 
-    // Injeta antes de qualquer outro script carregar
-    (document.head || document.documentElement).appendChild(script);
-    script.remove();
+    const el = document.createElement('script');
+    el.textContent = code;
+    (document.head || document.documentElement).appendChild(el);
+    el.remove();
   }
 
-  // Injeta imediatamente (document-start)
   injectPageScript();
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // PARTE 2 — Código Tampermonkey (Isolated World)
-  // Recebe CustomEvents da página e usa GM_xmlhttpRequest para enviar ao bot.
+  // Recebe token via CustomEvent e envia ao bot
   // ─────────────────────────────────────────────────────────────────────────────
-
-  // Recebe token da página via CustomEvent
-  window.addEventListener('__btr_token__', function(e) {
+  window.addEventListener('__btr__', function(e) {
     const { token, fp, source } = e.detail || {};
     if (!token || token === _lastSent) return;
-
-    console.info('[BTR] token recebido via', source, '→', token.slice(0,12) + '…');
     sendToken(token, fp, source);
   });
 
   function sendToken(token, fp, source) {
     setStatus('pending', 'Enviando…');
-
     const payload = { token, autoConnect: true };
     if (fp) payload.fingerprint = fp;
 
@@ -170,55 +246,29 @@
             _lastSent   = token;
             _lastSentAt = Date.now();
             setStatus('ok', '✓ Conectado');
-            console.info(`[BTR] ✓ enviado (${source})`, data.isNew ? '— novo' : '— mesmo');
+            console.info(`[BTR] ✓ (${source})`, data.isNew ? 'novo' : 'mesmo');
           } else {
             setStatus('error', 'Rejeitado');
-            console.warn('[BTR] bot rejeitou:', data.error);
           }
-        } catch {
-          setStatus('error', 'Resposta inválida');
-        }
+        } catch { setStatus('error', 'Erro'); }
       },
       onerror()  { setStatus('error', 'Bot offline?'); },
       ontimeout(){ setStatus('error', 'Timeout'); },
     });
   }
 
-  // ── Badge UI ─────────────────────────────────────────────────────────────────
-  const STYLES = `
-    #btr{position:fixed;bottom:16px;right:16px;z-index:2147483647;
-      display:flex;align-items:center;gap:6px;
-      background:#0f172a;border:1px solid #1e293b;border-radius:999px;
-      padding:5px 11px 5px 7px;font:11px/1 ui-monospace,monospace;
-      color:#94a3b8;cursor:pointer;user-select:none;
-      box-shadow:0 4px 16px rgba(0,0,0,.6);transition:opacity .15s}
-    #btr:hover{opacity:.8}
-    #btr-d{width:7px;height:7px;border-radius:50%;background:#475569;flex-shrink:0;transition:background .25s}
-    #btr-d.ok{background:#22c55e;box-shadow:0 0 5px #22c55e99}
-    #btr-d.error{background:#ef4444;box-shadow:0 0 5px #ef444499}
-    #btr-d.pending{background:#f59e0b;animation:btr-p .7s ease-in-out infinite alternate}
-    @keyframes btr-p{from{opacity:1}to{opacity:.25}}
-  `;
+  // ── Badge ─────────────────────────────────────────────────────────────────────
+  const CSS = `#btr{position:fixed;bottom:16px;right:16px;z-index:2147483647;display:flex;align-items:center;gap:6px;background:#0f172a;border:1px solid #1e293b;border-radius:999px;padding:5px 11px 5px 7px;font:11px/1 ui-monospace,monospace;color:#94a3b8;cursor:pointer;user-select:none;box-shadow:0 4px 16px rgba(0,0,0,.6)}#btr:hover{opacity:.8}#btr-d{width:7px;height:7px;border-radius:50%;background:#475569;flex-shrink:0}#btr-d.ok{background:#22c55e;box-shadow:0 0 5px #22c55e99}#btr-d.error{background:#ef4444;box-shadow:0 0 5px #ef444499}#btr-d.pending{background:#f59e0b;animation:btr-p .7s ease-in-out infinite alternate}@keyframes btr-p{from{opacity:1}to{opacity:.25}}`;
 
-  function createBadge() {
-    const s = document.createElement('style');
-    s.textContent = STYLES;
-    (document.head || document.documentElement).appendChild(s);
-
-    const el = document.createElement('div');
-    el.id = 'btr';
+  function boot() {
+    const s = document.createElement('style'); s.textContent = CSS;
+    document.head.appendChild(s);
+    const el = document.createElement('div'); el.id = 'btr';
     el.innerHTML = '<span id="btr-d"></span><span id="btr-l">Bot Relay</span>';
-    el.title = 'Bitsler Token Relay — clique para forçar reenvio';
-    el.onclick = () => {
-      // Dispara diagnóstico no Main World via script injetado
-      const s2 = document.createElement('script');
-      s2.textContent = 'if(window.__btrPageDiag) __btrPageDiag();';
-      document.documentElement.appendChild(s2);
-      s2.remove();
-      // Se já tem token, reenvia
-      if (_lastSent) sendToken(_lastSent, null, 'manual-click');
-    };
-    document.documentElement.appendChild(el);
+    el.title = 'clique para reenviar';
+    el.onclick = () => { if (_lastSent) sendToken(_lastSent, null, 'manual'); };
+    document.body.appendChild(el);
+    setStatus('pending', 'Aguardando…');
   }
 
   function setStatus(state, text) {
@@ -226,23 +276,6 @@
     const l = document.getElementById('btr-l');
     if (d) d.className = state;
     if (l) l.textContent = text;
-  }
-
-  // Badge aparece quando DOM tiver body
-  function waitForBody() {
-    if (document.body) {
-      document.body.appendChild(document.getElementById('btr') || (() => {
-        const el = document.createElement('div');
-        el.id = 'btr';
-        return el;
-      })());
-    }
-  }
-
-  function boot() {
-    createBadge();
-    setStatus('pending', 'Aguardando…');
-    console.info('[BTR] pronto — rode __btrPageDiag() no console para diagnóstico');
   }
 
   if (document.readyState === 'loading') {
