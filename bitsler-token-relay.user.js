@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bitsler Token Relay
 // @namespace    bitsler-token-relay
-// @version      1.0.0
+// @version      1.1.0
 // @description  Extrai automaticamente o socketToken do Bitsler e envia ao bot local
 // @author       victorfioravante
 // @match        https://www.bitsler.com/*
@@ -10,6 +10,7 @@
 // @grant        GM_xmlhttpRequest
 // @grant        GM_addStyle
 // @grant        GM_registerMenuCommand
+// @grant        unsafeWindow
 // @connect      localhost
 // @connect      127.0.0.1
 // @run-at       document-idle
@@ -97,10 +98,13 @@
   }
 
   // ─── Extração do token ─────────────────────────────────────────────────────
+  // unsafeWindow = janela real da página (Tampermonkey isola o window padrão)
+  const pageWindow = (typeof unsafeWindow !== 'undefined') ? unsafeWindow : window;
+
   function extractToken() {
     try {
       // Fonte 1: Vue store (principal)
-      const store = window.__vue_store__ || window.__store__;
+      const store = pageWindow.__vue_store__ || pageWindow.__store__;
       if (store?.state?.chat?.user?.socketToken) {
         return {
           token:       store.state.chat.user.socketToken,
@@ -109,10 +113,18 @@
         };
       }
 
-      // Fonte 2: localStorage (fallback)
-      for (const key of Object.keys(localStorage)) {
+      // Fonte 2: injeção via script inline (garante acesso mesmo com CSP laxo)
+      // Lê variável temporária que injetamos na página
+      if (pageWindow.__btr_token__) {
+        const t = pageWindow.__btr_token__;
+        return { token: t.token, fingerprint: t.fp || null, username: t.user || null };
+      }
+
+      // Fonte 3: localStorage da página
+      const ls = pageWindow.localStorage;
+      for (const key of Object.keys(ls)) {
         if (key.toLowerCase().includes('token')) {
-          const raw = localStorage.getItem(key);
+          const raw = ls.getItem(key);
           if (raw && raw.length > 30 && /^[a-f0-9]{32,}$/i.test(raw)) {
             return { token: raw, fingerprint: null, username: null };
           }
@@ -122,6 +134,37 @@
       console.warn('[BTR] Erro ao extrair token:', e);
     }
     return null;
+  }
+
+  // Injeta script inline na página para ler o store e expor via variável global
+  function injectPageBridge() {
+    try {
+      const script = document.createElement('script');
+      script.textContent = `
+        (function() {
+          function tryExpose() {
+            const s = window.__vue_store__ || window.__store__;
+            if (s && s.state && s.state.chat && s.state.chat.user && s.state.chat.user.socketToken) {
+              window.__btr_token__ = {
+                token: s.state.chat.user.socketToken,
+                fp:    s.state.chat.user.fingerprint || null,
+                user:  s.state.chat.user.username    || null,
+              };
+              return true;
+            }
+            return false;
+          }
+          // Tenta agora e depois de 2s, 5s, 10s
+          if (!tryExpose()) {
+            [2000, 5000, 10000].forEach(d => setTimeout(tryExpose, d));
+          }
+        })();
+      `;
+      document.head.appendChild(script);
+      script.remove();
+    } catch(e) {
+      console.warn('[BTR] Bridge inject falhou:', e);
+    }
   }
 
   // ─── Envio ao bot ──────────────────────────────────────────────────────────
@@ -205,9 +248,12 @@
     createBadge();
     setStatus('pending', 'Aguardando…');
 
+    // Injeta bridge na página para contornar sandbox do Tampermonkey
+    injectPageBridge();
+
     // Aguarda o Vue store ser populado (login pode demorar)
     let attempts = 0;
-    const MAX = 30; // até 30s
+    const MAX = 40; // até 40s
     const poll = setInterval(() => {
       attempts++;
       const extracted = extractToken();
