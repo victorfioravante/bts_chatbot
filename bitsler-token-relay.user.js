@@ -1,12 +1,16 @@
 // ==UserScript==
 // @name         Bitsler Token Relay
 // @namespace    bitsler-token-relay
-// @version      3.1.0
+// @version      4.0.0
 // @description  Captura o socketToken do Bitsler e envia automaticamente ao bot local
 // @author       victorfioravante
 // @match        https://www.bitsler.com/*
 // @match        https://bitsler.com/*
-// @grant        none
+// @grant        GM_xmlhttpRequest
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @connect      localhost
+// @connect      127.0.0.1
 // @run-at       document-start
 // @noframes
 // ==/UserScript==
@@ -14,246 +18,170 @@
 (function () {
   'use strict';
 
-  const BOT_URL      = 'http://localhost:3001';
-  const SEND_DELAY   = 600;
-  const RESEND_AFTER = 55 * 60 * 1000; // reenvia após 55min (renovação)
+  // ── Configuração ─────────────────────────────────────────────────────────────
+  const BOT_URL      = GM_getValue('botUrl', 'http://localhost:3001');
+  const RESEND_AFTER = 55 * 60 * 1000;
 
-  // ── Estado ───────────────────────────────────────────────────────────────────
-  let _socketToken = null;
-  let _fingerprint = null;
-  let _source      = null;
-  let _lastSent    = null;
-  let _lastSentAt  = 0;
-  let _sendTimer   = null;
+  let _lastSent   = null;
+  let _lastSentAt = 0;
 
-  // ── Helpers ──────────────────────────────────────────────────────────────────
-  function isToken(v) {
-    return typeof v === 'string' && v.length > 15 && !/\s/.test(v) && !v.startsWith('http');
+  // ─────────────────────────────────────────────────────────────────────────────
+  // PARTE 1 — Código injetado na página (Main World)
+  // Roda no contexto real do site, tem acesso a window.__vue_store__, fetch, XHR.
+  // Comunica com o script Tampermonkey via CustomEvent.
+  // ─────────────────────────────────────────────────────────────────────────────
+  function injectPageScript() {
+    const script = document.createElement('script');
+    script.setAttribute('data-btr', '1');
+    script.textContent = `(function() {
+  'use strict';
+
+  function emit(token, fp, source) {
+    window.dispatchEvent(new CustomEvent('__btr_token__', {
+      detail: { token: token, fp: fp || null, source: source }
+    }));
   }
 
-  // Busca recursiva por uma chave específica num objeto
-  function findKey(obj, key, depth) {
-    if (!obj || typeof obj !== 'object' || depth > 8) return null;
-    if (key in obj && isToken(obj[key])) return obj[key];
-    for (const k of Object.keys(obj)) {
-      const r = findKey(obj[k], key, depth + 1);
-      if (r) return r;
-    }
+  function isToken(v) {
+    return typeof v === 'string' && v.length > 15 && !/\\s/.test(v) && !v.startsWith('http');
+  }
+
+  // Busca socketToken no Vue store (caminho direto)
+  function fromStore() {
+    try {
+      // Vue 2 global store
+      var s = window.__vue_store__;
+      if (s && s.state && s.state.chat && s.state.chat.user) {
+        var u = s.state.chat.user;
+        if (isToken(u.socketToken)) return { t: u.socketToken, fp: u.fingerprint || null };
+      }
+    } catch(e) {}
+    try {
+      // Vue 3
+      var app = window.__vue_app__ || (document.querySelector('#app') && document.querySelector('#app').__vue_app__);
+      if (app && app.config && app.config.globalProperties && app.config.globalProperties.$store) {
+        var st = app.config.globalProperties.$store.state;
+        if (st && st.chat && st.chat.user && isToken(st.chat.user.socketToken)) {
+          return { t: st.chat.user.socketToken, fp: st.chat.user.fingerprint || null };
+        }
+      }
+    } catch(e) {}
     return null;
   }
 
-  // ── Intercepta responses do fetch para capturar socketToken ─────────────────
-  // O socketToken aparece na resposta do login/auth, não no body do request.
-  // access_token (REST) ≠ socketToken (WebSocket) — são tokens distintos!
-  const _origFetch = window.fetch;
-  window.fetch = function (input, init) {
-    const url = typeof input === 'string' ? input : (input?.url || '');
-    const promise = _origFetch.apply(this, arguments);
-
-    // Só inspeciona respostas de endpoints que podem retornar socketToken
-    if (url.includes('/api/')) {
-      promise.then(res => {
-        // Clone para não consumir o body original
-        res.clone().json().then(data => {
-          captureFromObject(data, 'fetch-response');
-        }).catch(() => {});
-      }).catch(() => {});
+  // Intercepta respostas fetch para capturar socketToken
+  var _origFetch = window.fetch;
+  window.fetch = function(input, init) {
+    var result = _origFetch.apply(this, arguments);
+    var url = typeof input === 'string' ? input : (input && input.url) || '';
+    if (url.indexOf('/api/') !== -1) {
+      result.then(function(res) {
+        res.clone().json().then(function(data) {
+          var st = data && (data.socketToken || (data.data && data.data.socketToken) || (data.user && data.user.socketToken));
+          var fp = data && (data.fingerprint || (data.user && data.user.fingerprint));
+          if (st && isToken(st)) emit(st, fp, 'fetch-response');
+        }).catch(function(){});
+      }).catch(function(){});
     }
-
-    return promise;
+    return result;
   };
 
-  // Intercepta XHR responses também
-  const _OrigXHR = window.XMLHttpRequest;
-  window.XMLHttpRequest = function () {
-    const xhr = new _OrigXHR();
-    const origOpen = xhr.open.bind(xhr);
-    xhr.open = function (m, u) { xhr._url = u; return origOpen.apply(this, arguments); };
-
-    xhr.addEventListener('load', function () {
-      if (!xhr._url?.includes('/api/')) return;
+  // Intercepta XHR responses
+  var _OrigXHR = window.XMLHttpRequest;
+  window.XMLHttpRequest = function() {
+    var xhr = new _OrigXHR();
+    xhr.addEventListener('load', function() {
       try {
-        const data = JSON.parse(xhr.responseText);
-        captureFromObject(data, 'xhr-response');
-      } catch {}
+        var data = JSON.parse(xhr.responseText);
+        var st = data && (data.socketToken || (data.data && data.data.socketToken) || (data.user && data.user.socketToken));
+        var fp = data && (data.fingerprint || (data.user && data.user.fingerprint));
+        if (st && isToken(st)) emit(st, fp, 'xhr-response');
+      } catch(e) {}
     });
-
     return xhr;
   };
   window.XMLHttpRequest.prototype = _OrigXHR.prototype;
 
-  // Procura socketToken (e fingerprint) num objeto de resposta da API
-  function captureFromObject(data, source) {
-    if (!data || typeof data !== 'object') return;
-
-    // Caminho direto mais comum: data.socketToken ou data.user.socketToken
-    const st =
-      data?.socketToken ||
-      data?.data?.socketToken ||
-      data?.user?.socketToken ||
-      data?.chat?.user?.socketToken ||
-      findKey(data, 'socketToken', 0);
-
-    if (st && isToken(st) && st !== _socketToken) {
-      _socketToken = st;
-      _source = source;
-
-      // Tenta pegar fingerprint junto
-      _fingerprint =
-        data?.fingerprint ||
-        data?.fp ||
-        data?.data?.fingerprint ||
-        data?.user?.fingerprint ||
-        findKey(data, 'fingerprint', 0) ||
-        _fingerprint;
-
-      console.info(`[BTR] socketToken capturado via ${source}:`, st.slice(0, 12) + '…');
-      scheduleSend();
+  // Watcher: verifica store a cada 2s
+  var _lastEmit = null;
+  setInterval(function() {
+    var found = fromStore();
+    if (found && found.t !== _lastEmit) {
+      _lastEmit = found.t;
+      emit(found.t, found.fp, 'store-watch');
     }
+  }, 2000);
+
+  // Diagnóstico global (rode __btrPageDiag() no console)
+  window.__btrPageDiag = function() {
+    var s = window.__vue_store__;
+    console.group('[BTR-page] diagnóstico Main World');
+    console.log('__vue_store__?', !!s);
+    if (s) {
+      console.log('state keys:', Object.keys(s.state || {}));
+      console.log('socketToken?', s.state && s.state.chat && s.state.chat.user && s.state.chat.user.socketToken
+        ? s.state.chat.user.socketToken.slice(0,12) + '...' : 'não encontrado');
+    }
+    console.log('fromStore():', fromStore());
+    console.groupEnd();
+  };
+
+  console.log('[BTR-page] injetado no Main World — rode __btrPageDiag() para diagnóstico');
+})();`;
+
+    // Injeta antes de qualquer outro script carregar
+    (document.head || document.documentElement).appendChild(script);
+    script.remove();
   }
 
-  // ── Busca no Vue store (watcher periódico) ───────────────────────────────────
-  function searchStore() {
-    try {
-      // Caminho direto — mais confiável
-      const store = window.__vue_store__;
-      if (store?.state?.chat?.user?.socketToken) {
-        const st = store.state.chat.user.socketToken;
-        const fp = store.state.chat.user.fingerprint || null;
-        if (isToken(st)) return { token: st, fp, source: 'store-direct' };
-      }
-    } catch {}
+  // Injeta imediatamente (document-start)
+  injectPageScript();
 
-    try {
-      // Vue 3
-      const app = window.__vue_app__ || document.querySelector('#app')?.__vue_app__;
-      if (app) {
-        const st = findKey(app.config?.globalProperties?.$store?.state, 'socketToken', 0);
-        if (st) return { token: st, fp: null, source: 'vue3-store' };
-      }
-    } catch {}
+  // ─────────────────────────────────────────────────────────────────────────────
+  // PARTE 2 — Código Tampermonkey (Isolated World)
+  // Recebe CustomEvents da página e usa GM_xmlhttpRequest para enviar ao bot.
+  // ─────────────────────────────────────────────────────────────────────────────
 
-    try {
-      // localStorage / sessionStorage (algumas versões salvam)
-      for (const storage of [localStorage, sessionStorage]) {
-        for (let i = 0; i < storage.length; i++) {
-          const k = storage.key(i); if (!k) continue;
-          const v = storage.getItem(k); if (!v) continue;
-          if (k === 'socketToken' && isToken(v)) return { token: v, fp: null, source: 'storage-key' };
-          if (v.startsWith('{')) {
-            try {
-              const st = findKey(JSON.parse(v), 'socketToken', 0);
-              if (st) return { token: st, fp: null, source: 'storage-json' };
-            } catch {}
-          }
-        }
-      }
-    } catch {}
+  // Recebe token da página via CustomEvent
+  window.addEventListener('__btr_token__', function(e) {
+    const { token, fp, source } = e.detail || {};
+    if (!token || token === _lastSent) return;
 
-    return null;
-  }
+    console.info('[BTR] token recebido via', source, '→', token.slice(0,12) + '…');
+    sendToken(token, fp, source);
+  });
 
-  // ── Envio ao bot ─────────────────────────────────────────────────────────────
-  function scheduleSend() {
-    if (_sendTimer) clearTimeout(_sendTimer);
-    _sendTimer = setTimeout(() => doSend(false), SEND_DELAY);
-  }
-
-  function doSend(force) {
-    if (!_socketToken) return;
-    if (!force && _socketToken === _lastSent) return;
-
+  function sendToken(token, fp, source) {
     setStatus('pending', 'Enviando…');
 
-    const payload = { token: _socketToken, autoConnect: true };
-    if (_fingerprint) payload.fingerprint = _fingerprint;
+    const payload = { token, autoConnect: true };
+    if (fp) payload.fingerprint = fp;
 
-    fetch(`${BOT_URL}/api/v1/socket-token`, {
+    GM_xmlhttpRequest({
       method:  'POST',
+      url:     `${BOT_URL}/api/v1/socket-token`,
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(payload),
-    })
-      .then(r => r.json())
-      .then(data => {
-        if (data.ok) {
-          _lastSent   = _socketToken;
-          _lastSentAt = Date.now();
-          setStatus('ok', '✓ Conectado');
-          console.info(`[BTR] ✓ Token enviado (${_source})`, data.isNew ? '— novo' : '— mesmo');
-        } else {
-          setStatus('error', 'Rejeitado');
-          console.warn('[BTR] Bot rejeitou:', data.error);
+      data:    JSON.stringify(payload),
+      timeout: 8000,
+      onload(res) {
+        try {
+          const data = JSON.parse(res.responseText);
+          if (data.ok) {
+            _lastSent   = token;
+            _lastSentAt = Date.now();
+            setStatus('ok', '✓ Conectado');
+            console.info(`[BTR] ✓ enviado (${source})`, data.isNew ? '— novo' : '— mesmo');
+          } else {
+            setStatus('error', 'Rejeitado');
+            console.warn('[BTR] bot rejeitou:', data.error);
+          }
+        } catch {
+          setStatus('error', 'Resposta inválida');
         }
-      })
-      .catch(() => {
-        setStatus('error', 'Bot offline?');
-      });
-  }
-
-  // ── Diagnóstico (abre console do DevTools para ver) ─────────────────────────
-  function diagnose() {
-    const store = window.__vue_store__;
-    const app   = window.__vue_app__ || document.querySelector('#app')?.__vue_app__;
-    console.group('[BTR] diagnóstico');
-    console.log('__vue_store__ existe?', !!store);
-    if (store) {
-      console.log('state keys:', Object.keys(store.state || {}));
-      console.log('state.chat?', !!store.state?.chat);
-      console.log('state.chat.user?', !!store.state?.chat?.user);
-      console.log('socketToken?', store.state?.chat?.user?.socketToken?.slice(0,12) || 'não encontrado');
-      console.log('fingerprint?', store.state?.chat?.user?.fingerprint || 'não encontrado');
-    }
-    console.log('__vue_app__ existe?', !!app);
-    console.log('_socketToken atual:', _socketToken?.slice(0,12) || 'nenhum');
-    console.groupEnd();
-  }
-
-  // ── Watcher periódico ────────────────────────────────────────────────────────
-  function startWatcher() {
-    let ticks = 0;
-    const interval = setInterval(() => {
-      ticks++;
-
-      // Log de diagnóstico nas primeiras tentativas
-      if (ticks <= 5 || ticks % 10 === 0) {
-        console.log(`[BTR] tick ${ticks} — store:`, !!window.__vue_store__,
-          '— socketToken:', window.__vue_store__?.state?.chat?.user?.socketToken?.slice(0,12) || 'null');
-      }
-
-      // Tenta store a cada tick enquanto não tiver token
-      if (!_socketToken) {
-        const found = searchStore();
-        if (found) {
-          _socketToken = found.token;
-          _fingerprint = found.fp || _fingerprint;
-          _source      = found.source;
-          console.info(`[BTR] ✓ socketToken encontrado (${found.source}):`, found.token.slice(0, 12) + '…');
-          scheduleSend();
-        }
-        return;
-      }
-
-      // Tem token — verifica se mudou no store
-      const found = searchStore();
-      if (found && found.token !== _socketToken) {
-        console.info('[BTR] socketToken rotacionado — reenviando…');
-        _socketToken = found.token;
-        _fingerprint = found.fp || _fingerprint;
-        _source      = found.source + '-rotation';
-        scheduleSend();
-        return;
-      }
-
-      // Reenvia periodicamente para cobrir reconexões do bot
-      if (Date.now() - _lastSentAt > RESEND_AFTER) {
-        console.info('[BTR] Reenvio periódico (55min)');
-        doSend(true);
-      }
-    }, 2000); // a cada 2s (mais agressivo)
-
-    // Expõe diagnóstico global para rodar no console: window.btrDiag()
-    window.btrDiag = diagnose;
-    console.info('[BTR] iniciado — rode window.btrDiag() no console para diagnóstico');
+      },
+      onerror()  { setStatus('error', 'Bot offline?'); },
+      ontimeout(){ setStatus('error', 'Timeout'); },
+    });
   }
 
   // ── Badge UI ─────────────────────────────────────────────────────────────────
@@ -275,23 +203,22 @@
   function createBadge() {
     const s = document.createElement('style');
     s.textContent = STYLES;
-    document.head.appendChild(s);
+    (document.head || document.documentElement).appendChild(s);
 
     const el = document.createElement('div');
     el.id = 'btr';
     el.innerHTML = '<span id="btr-d"></span><span id="btr-l">Bot Relay</span>';
-    el.title = 'Bitsler Token Relay — clique para forçar envio';
+    el.title = 'Bitsler Token Relay — clique para forçar reenvio';
     el.onclick = () => {
-      // Clique: força busca no store + envia
-      const found = searchStore();
-      if (found) {
-        _socketToken = found.token;
-        _fingerprint = found.fp || _fingerprint;
-        _source      = found.source + '-manual';
-      }
-      doSend(true);
+      // Dispara diagnóstico no Main World via script injetado
+      const s2 = document.createElement('script');
+      s2.textContent = 'if(window.__btrPageDiag) __btrPageDiag();';
+      document.documentElement.appendChild(s2);
+      s2.remove();
+      // Se já tem token, reenvia
+      if (_lastSent) sendToken(_lastSent, null, 'manual-click');
     };
-    document.body.appendChild(el);
+    document.documentElement.appendChild(el);
   }
 
   function setStatus(state, text) {
@@ -301,11 +228,21 @@
     if (l) l.textContent = text;
   }
 
-  // ── Init ─────────────────────────────────────────────────────────────────────
+  // Badge aparece quando DOM tiver body
+  function waitForBody() {
+    if (document.body) {
+      document.body.appendChild(document.getElementById('btr') || (() => {
+        const el = document.createElement('div');
+        el.id = 'btr';
+        return el;
+      })());
+    }
+  }
+
   function boot() {
     createBadge();
     setStatus('pending', 'Aguardando…');
-    startWatcher();
+    console.info('[BTR] pronto — rode __btrPageDiag() no console para diagnóstico');
   }
 
   if (document.readyState === 'loading') {
