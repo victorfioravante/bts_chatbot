@@ -249,11 +249,11 @@ function emit(event, data) {
     logger.warn(`Tentativa de emitir '${event}' sem conexao ativa`);
     return false;
   }
-  // Bitsler espera channelName (não channel) no evento say
+  // Bitsler espera channelName (não channel) + isBot:true no evento say (schema)
   let payload = data;
-  if (event === "say" && data.channel !== undefined) {
+  if (event === "say") {
     const { channel, message, ...rest } = data;
-    payload = { ...rest, channelName: channel, message };
+    payload = { ...rest, channelName: channel ?? data.channelName, message, isBot: true };
   }
   logger.info(`[WS-emit] ${event} ${JSON.stringify(payload)}`);
   socket.emit(event, payload);

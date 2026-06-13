@@ -61,6 +61,9 @@ export const useStore = create((set, get) => ({
       triviaActive: event.type === "hint",
     })),
 
+  deleteMessage: (mid) =>
+    set((s) => ({ messages: s.messages.filter((m) => m.mid !== mid) })),
+
   addRainActivity: (evt) =>
     set((s) => ({
       rainActivity: [{ ...evt, ts: Date.now() }, ...s.rainActivity].slice(0, 30),

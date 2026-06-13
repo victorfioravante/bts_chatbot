@@ -17,6 +17,7 @@ export function useSSE() {
     addTriviaEvent,
     addRainActivity,
     setRainIntel,
+    deleteMessage,
   } = useStore();
 
   const esRef = useRef(null);
@@ -107,6 +108,11 @@ export function useSSE() {
 
       es.addEventListener("betResolved", (e) => {
         addRainActivity({ ...JSON.parse(e.data), isBet: true });
+      });
+
+      es.addEventListener("messageDeleted", (e) => {
+        const { mid } = JSON.parse(e.data);
+        if (mid) deleteMessage(mid);
       });
 
       es.onerror = () => {

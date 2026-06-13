@@ -30,10 +30,15 @@ function pushMessage(msg) {
 
 function getHistory(channel, limit = 100) {
   if (channel) return (chatHistory[channel] || []).slice(-limit);
-  // Merge all channels sorted by timestamp
   const all = Object.values(chatHistory).flat();
   all.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
   return all.slice(-limit);
+}
+
+function deleteMessage(mid) {
+  for (const ch of Object.keys(chatHistory)) {
+    chatHistory[ch] = chatHistory[ch].filter((m) => m.mid !== mid);
+  }
 }
 
 function register(socket) {
@@ -92,32 +97,65 @@ function register(socket) {
     }
   });
 
-  // Eventos de sistema/rain via onAny (history no join, eventos especiais)
+  // msg:rain — evento dedicado (mais confiável que checar data.type no onAny)
+  socket.on("msg:rain", (data) => {
+    if (!data || typeof data !== "object") return;
+    rainMonitor.handle(data);
+    const rainText = data.message || (data.from ? `Chat Rain from ${data.from}` : "Chat Rain");
+    pushMessage({
+      username: data.username || "Chat Rain",
+      channel: "system",
+      message: rainText,
+      mid: data.mid,
+      type: "rain",
+      timestamp: data.timestamp || Math.floor(Date.now() / 1000),
+      _event: "msg:rain",
+      _receivedAt: Date.now(),
+      initiator: data.from || null,
+      currency: data.currency,
+      amount: data.amount,
+      recipients: Array.isArray(data.users) ? data.users.length : undefined,
+    });
+  });
+
+  // rained:receiver — conta do bot recebeu chuva de outro usuário
+  socket.on("rained:receiver", (data) => {
+    if (!data) return;
+    logger.info(`[Rain] Bot recebeu chuva de ${data.sender}: ${data.currency} ${data.amount}`);
+    eventBus.emit("rainActivity", {
+      type: "received",
+      sender: data.sender,
+      currency: data.currency,
+      amount: parseFloat(data.amount) || 0,
+      timestamp: Date.now(),
+    });
+  });
+
+  // rained:sender — confirmação de que o bot enviou chuva com sucesso
+  socket.on("rained:sender", (data) => {
+    if (!data) return;
+    logger.info(`[Rain] Bot enviou chuva: ${data.currency} ${data.amount}`);
+    eventBus.emit("rainActivity", {
+      type: "sent",
+      currency: data.currency,
+      amount: parseFloat(data.amount) || 0,
+      timestamp: Date.now(),
+    });
+  });
+
+  // delete — mensagem removida por moderador: limpa histórico e avisa frontend
+  socket.on("delete", (mid) => {
+    if (!mid) return;
+    logger.info(`[Chat] Mensagem deletada: mid=${mid}`);
+    deleteMessage(mid);
+    eventBus.emit("messageDeleted", { mid });
+  });
+
+  // Eventos de sistema via onAny (apenas history no join e logs)
   socket.onAny((event, ...args) => {
-    if (event === "msg") return; // já tratado acima
+    if (["msg", "msg:rain", "rained:receiver", "rained:sender", "delete"].includes(event)) return;
     const data = args[0];
     if (!data || typeof data !== "object") return;
-
-    // msg:rain (Chat Rain, iniciado por humano) — processa rain e exibe no feed
-    if (data.type === "rain") {
-      rainMonitor.handle(data);
-      // Exibe no chat feed como mensagem do canal "system"
-      const rainText = data.message || (data.from ? `Chat Rain from ${data.from}` : "Chat Rain");
-      pushMessage({
-        username: data.username || "Chat Rain",
-        channel: "system",
-        message: rainText,
-        mid: data.mid,
-        type: "rain",
-        timestamp: data.timestamp || Math.floor(Date.now() / 1000),
-        _event: event,
-        _receivedAt: Date.now(),
-        initiator: data.from || null,
-        currency: data.currency,
-        amount: data.amount,
-        recipients: Array.isArray(data.users) ? data.users.length : undefined,
-      });
-    }
 
     // History no join: array de msgs antigas
     const ch = data.channel || data.channelName;
