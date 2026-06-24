@@ -452,6 +452,7 @@ export default function Monitor() {
   const [chatFeedback, setChatFeedback] = useState(null);
   const [triviaAutofill, setTriviaAutofill] = useState(false);
   const [top100Feedback, setTop100Feedback] = useState(null);
+  const [brWordsFeedback, setBrWordsFeedback] = useState(null);
 
   const { data: cfg } = useQuery({
     queryKey: ["config"],
@@ -519,6 +520,24 @@ export default function Monitor() {
       .catch(() => {
         setTop100Feedback({ ok: false, text: "Erro" });
         setTimeout(() => setTop100Feedback(null), 4000);
+      });
+  };
+
+  const refreshBRWords = () => {
+    setBrWordsFeedback({ loading: true, text: "Buscando..." });
+    fetch("/api/v1/trivia/br/refresh", { method: "POST" })
+      .then((r) => r.json())
+      .then((d) => {
+        setBrWordsFeedback(
+          d.ok
+            ? { ok: true, text: `✓ +${d.added} (${d.total} total)` }
+            : { ok: false, text: d.error || "Erro" }
+        );
+        setTimeout(() => setBrWordsFeedback(null), 5000);
+      })
+      .catch(() => {
+        setBrWordsFeedback({ ok: false, text: "Erro" });
+        setTimeout(() => setBrWordsFeedback(null), 4000);
       });
   };
 
@@ -640,6 +659,25 @@ export default function Monitor() {
             >
               <RefreshCw className={`w-3.5 h-3.5 ${top100Feedback?.loading ? "animate-spin" : ""}`} />
               {top100Feedback ? top100Feedback.text : "Top 100"}
+            </button>
+          )}
+
+          {/* BR words refresh — busca palavras PT-BR do FrequencyWords */}
+          {selectedChannel === "br" && (
+            <button
+              onClick={refreshBRWords}
+              disabled={brWordsFeedback?.loading}
+              className={`h-9 flex items-center gap-1.5 px-3 rounded-lg text-sm font-medium border transition-colors ${
+                brWordsFeedback?.ok === true
+                  ? "border-success/50 bg-success/10 text-success"
+                  : brWordsFeedback?.ok === false
+                  ? "border-destructive/50 bg-destructive/10 text-destructive"
+                  : "border-border bg-input text-muted-foreground hover:bg-accent hover:text-foreground"
+              }`}
+              title="Buscar palavras PT-BR mais frequentes (FrequencyWords)"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${brWordsFeedback?.loading ? "animate-spin" : ""}`} />
+              {brWordsFeedback ? brWordsFeedback.text : "🇧🇷 Palavras"}
             </button>
           )}
 

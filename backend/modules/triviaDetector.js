@@ -273,6 +273,58 @@ function analyze(msg) {
   }
 }
 
+// ─── Palavras PT-BR (FrequencyWords) ─────────────────────────────────────────
+
+/**
+ * Busca as palavras mais frequentes do português brasileiro.
+ * Fonte: hermitdave/FrequencyWords (top 50k pt_BR, formato "palavra count")
+ * Filtra: 4-8 letras, somente a-z após remover acentos, sem hífens/números.
+ */
+function fetchBRWords(limit = 5000) {
+  return new Promise((resolve, reject) => {
+    https.get(
+      "https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/pt_br/pt_br_50k.txt",
+      { headers: { "User-Agent": "Mozilla/5.0" } },
+      (res) => {
+        if (res.statusCode !== 200) {
+          return reject(new Error(`HTTP ${res.statusCode}`));
+        }
+        let raw = "";
+        res.on("data", (c) => (raw += c));
+        res.on("end", () => {
+          try {
+            const normalize = (s) =>
+              s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+            const words = raw
+              .split("\n")
+              .map((line) => {
+                const [word] = line.trim().split(" ");
+                return word ? normalize(word) : null;
+              })
+              .filter((w) => w && /^[a-z]{4,8}$/.test(w))
+              .slice(0, limit);
+
+            if (words.length === 0) return reject(new Error("Nenhuma palavra retornada"));
+
+            const data = loadData();
+            const existing = new Set(data.br_words);
+            const newWords = words.filter((w) => !existing.has(w));
+            data.br_words = [...existing, ...newWords];
+            const saved = saveData(data);
+            const total = saved.br_words.length;
+
+            logger.info(`[Trivia] BR words: ${newWords.length} novas (total: ${total})`);
+            resolve({ added: newWords.length, total });
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }
+    ).on("error", reject);
+  });
+}
+
 // ─── CoinMarketCap Top 100 fetch ─────────────────────────────────────────────
 
 function fetchTop100Coins() {
@@ -315,6 +367,6 @@ module.exports = {
   analyze, addWord, removeWord, loadWords, loadData, saveData,
   parseHint, matchWords, getActiveGame, setTheme, getTheme,
   enableTrivia, disableTrivia, isTriviaEnabled,
-  fetchTop100Coins,
+  fetchTop100Coins, fetchBRWords,
   THEMES,
 };

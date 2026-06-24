@@ -334,4 +334,14 @@ router.post("/trivia/top100/refresh", async (req, res) => {
   }
 });
 
+router.post("/trivia/br/refresh", async (req, res) => {
+  const limit = parseInt(req.query.limit, 10) || 5000;
+  try {
+    const result = await triviaDetector.fetchBRWords(limit);
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 module.exports = router;
