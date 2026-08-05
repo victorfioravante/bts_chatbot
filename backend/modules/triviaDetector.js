@@ -293,8 +293,12 @@ function fetchBRWords(limit = 5000) {
         res.on("data", (c) => (raw += c));
         res.on("end", () => {
           try {
+            // Mantém ç; remove demais diacríticos (á→a, ã→a, ô→o, etc.)
             const normalize = (s) =>
-              s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+              s.normalize("NFD")
+               .replace(/[̀-̨̦-ͯ]/g, "") // strip tudo exceto U+0327 (cedilha)
+               .normalize("NFC")   // recompõe c + cedilha → ç
+               .toLowerCase();
 
             const words = raw
               .split("\n")
@@ -302,7 +306,7 @@ function fetchBRWords(limit = 5000) {
                 const [word] = line.trim().split(" ");
                 return word ? normalize(word) : null;
               })
-              .filter((w) => w && /^[a-z]{4,8}$/.test(w))
+              .filter((w) => w && /^[a-zç]{4,8}$/.test(w))
               .slice(0, limit);
 
             if (words.length === 0) return reject(new Error("Nenhuma palavra retornada"));
